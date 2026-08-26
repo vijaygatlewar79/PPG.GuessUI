@@ -843,6 +843,9 @@ export default function App() {
     if (savedEnvironmentKey === apiEnvironmentKey) return
 
     setApiEnvironmentKey(savedEnvironmentKey)
+    setGames([])
+    setSelectedGame('')
+    setGamesStatus('loading')
     setNumbers('')
     setAnalysis(null)
     setStatus('idle')
@@ -851,6 +854,10 @@ export default function App() {
     setIsPatternResponsesOpen(false)
     setIsNumberAnalysisOpen(false)
     setIsGeneratorOpen(false)
+    setGeneratorSources([])
+    setGeneratorFileName('')
+    setGeneratorUrl('')
+    setGeneratorStatus('idle')
     setGeneratorError('')
     setGeneratorResult(null)
   }
