@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import ApiEnvironmentSelector from './components/ApiEnvironmentSelector'
 import PageHeader from './components/PageHeader'
 import CurrentDataSection from './components/explorer/CurrentDataSection'
@@ -56,12 +56,14 @@ function ChartGeneratorModal({
   status,
   url,
 }) {
-  const isLoading = status === 'loading'
+  const isGenerating = status === 'loading'
+  const isLoadingOptions = status === 'loading-options'
+  const isLoading = isGenerating || isLoadingOptions
 
   return (
     <div
       className="modal-backdrop"
-      onMouseDown={(event) => event.target === event.currentTarget && !isLoading && onClose()}
+      onMouseDown={(event) => event.target === event.currentTarget && !isGenerating && onClose()}
       role="presentation"
     >
       <section aria-labelledby="chart-generator-title" aria-modal="true" className="generator-modal" role="dialog">
@@ -70,7 +72,7 @@ function ChartGeneratorModal({
             <p className="modal-eyebrow">Panel data import</p>
             <h2 id="chart-generator-title">Generate Excel from URL</h2>
           </div>
-          <button aria-label="Close generator" className="modal-close" disabled={isLoading} onClick={onClose} type="button">
+          <button aria-label="Close generator" className="modal-close" disabled={isGenerating} onClick={onClose} type="button">
             &times;
           </button>
         </header>
@@ -80,6 +82,7 @@ function ChartGeneratorModal({
             <label htmlFor="chart-file-name">File name</label>
             <select
               autoFocus
+              disabled={isLoading}
               id="chart-file-name"
               onChange={(event) => onSourceChange(event.target.value)}
               required
@@ -98,6 +101,7 @@ function ChartGeneratorModal({
           <div className="generator-field">
             <label htmlFor="chart-url">Chart URL</label>
             <input
+              disabled={isLoading}
               id="chart-url"
               onChange={(event) => onUrlChange(event.target.value)}
               placeholder="Enter chart page URL"
@@ -116,11 +120,11 @@ function ChartGeneratorModal({
           )}
 
           <footer className="generator-actions">
-            <button className="secondary-button" disabled={isLoading} onClick={onClose} type="button">
+            <button className="secondary-button" disabled={isGenerating} onClick={onClose} type="button">
               {result ? 'Close' : 'Cancel'}
             </button>
             <button className="primary-button" disabled={isLoading} type="submit">
-              {isLoading ? 'Generating...' : result ? 'Generate again' : 'Generate Excel'}
+              {isLoadingOptions ? 'Loading options...' : isGenerating ? 'Generating...' : result ? 'Generate again' : 'Generate Excel'}
             </button>
           </footer>
         </form>
@@ -795,9 +799,19 @@ export default function App() {
   const [patternResponses, setPatternResponses] = useState([])
   const [isPatternResponsesOpen, setIsPatternResponsesOpen] = useState(false)
   const apiBaseUrl = getApiEnvironment(apiEnvironmentKey).baseUrl
+  const activeApiBaseUrlRef = useRef(apiBaseUrl)
+  const apiRequestGenerationRef = useRef(0)
+  const generatorOptionsRequestRef = useRef(0)
+
+  const isApiRequestCurrent = (requestGeneration, requestBaseUrl) => (
+    apiRequestGenerationRef.current === requestGeneration
+    && activeApiBaseUrlRef.current === requestBaseUrl
+  )
 
   useEffect(() => {
     const controller = new AbortController()
+    const requestGeneration = apiRequestGenerationRef.current
+    const requestBaseUrl = apiBaseUrl
 
     const loadGames = async () => {
       try {
@@ -805,12 +819,16 @@ export default function App() {
         setSelectedGame('')
         setGamesStatus('loading')
         setError('')
-        const data = await fetchGames(apiBaseUrl, controller.signal)
+        const data = await fetchGames(requestBaseUrl, controller.signal)
+        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
         setGames(data)
         setSelectedGame(data[0]?.fileName ?? '')
         setGamesStatus(data.length > 0 ? 'success' : 'empty')
       } catch (requestError) {
-        if (requestError instanceof DOMException && requestError.name === 'AbortError') {
+        if (
+          (requestError instanceof DOMException && requestError.name === 'AbortError')
+          || !isApiRequestCurrent(requestGeneration, requestBaseUrl)
+        ) {
           return
         }
 
@@ -842,6 +860,10 @@ export default function App() {
     const savedEnvironmentKey = saveApiEnvironmentKey(nextEnvironmentKey)
     if (savedEnvironmentKey === apiEnvironmentKey) return
 
+    const nextApiBaseUrl = getApiEnvironment(savedEnvironmentKey).baseUrl
+    activeApiBaseUrlRef.current = nextApiBaseUrl
+    apiRequestGenerationRef.current += 1
+    generatorOptionsRequestRef.current += 1
     setApiEnvironmentKey(savedEnvironmentKey)
     setGames([])
     setSelectedGame('')
@@ -871,14 +893,24 @@ export default function App() {
   )?.label ?? 'Sequence Pattern'
 
   const openGenerator = async () => {
+    const requestGeneration = apiRequestGenerationRef.current
+    const requestBaseUrl = apiBaseUrl
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+
+    const optionsRequest = ++generatorOptionsRequestRef.current
     setGeneratorError('')
     setGeneratorResult(null)
-    setGeneratorStatus('idle')
+    setGeneratorStatus('loading-options')
     setIsGeneratorOpen(true)
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/chart-export/options`)
+      const response = await fetch(`${requestBaseUrl}/api/chart-export/options`)
       const data = await response.json().catch(() => null)
+      if (
+        optionsRequest !== generatorOptionsRequestRef.current
+        || !isApiRequestCurrent(requestGeneration, requestBaseUrl)
+      ) return
+
       if (!response.ok) {
         throw new Error(getProblemMessage(data, `Options request failed with status ${response.status}.`))
       }
@@ -889,7 +921,14 @@ export default function App() {
       setGeneratorSources(sources)
       setGeneratorFileName(selectedSource?.fileName ?? '')
       setGeneratorUrl(selectedSource?.url ?? '')
+      setGeneratorStatus('idle')
     } catch (requestError) {
+      if (
+        optionsRequest !== generatorOptionsRequestRef.current
+        || !isApiRequestCurrent(requestGeneration, requestBaseUrl)
+      ) return
+
+      setGeneratorStatus('error')
       setGeneratorError(
         requestError instanceof Error ? requestError.message : 'Unable to load generator defaults.',
       )
@@ -906,23 +945,30 @@ export default function App() {
 
   const closeGenerator = () => {
     if (generatorStatus !== 'loading') {
+      generatorOptionsRequestRef.current += 1
       setIsGeneratorOpen(false)
+      if (generatorStatus === 'loading-options') setGeneratorStatus('idle')
     }
   }
 
   const generateExcel = async (event) => {
     event.preventDefault()
+    const requestGeneration = apiRequestGenerationRef.current
+    const requestBaseUrl = apiBaseUrl
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+
     setGeneratorStatus('loading')
     setGeneratorError('')
     setGeneratorResult(null)
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/chart-export/generate`, {
+      const response = await fetch(`${requestBaseUrl}/api/chart-export/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: generatorUrl, fileName: generatorFileName }),
       })
       const data = await response.json().catch(() => null)
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
 
       if (!response.ok) {
         throw new Error(getProblemMessage(data, `Generation request failed with status ${response.status}.`))
@@ -939,7 +985,8 @@ export default function App() {
       setError('')
 
       try {
-        const refreshedGames = await fetchGames(apiBaseUrl)
+        const refreshedGames = await fetchGames(requestBaseUrl)
+        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
         setGames(refreshedGames)
         setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
         setSelectedGame(
@@ -948,6 +995,7 @@ export default function App() {
             : refreshedGames[0]?.fileName ?? '',
         )
       } catch (refreshError) {
+        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
         setError(
           refreshError instanceof Error
             ? `Excel was generated, but the game list could not refresh: ${refreshError.message}`
@@ -955,19 +1003,25 @@ export default function App() {
         )
       }
     } catch (requestError) {
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
       setGeneratorStatus('error')
       setGeneratorError(requestError instanceof Error ? requestError.message : 'Unable to generate the Excel file.')
     }
   }
 
   const chartFileGenerated = async (result) => {
+    const requestGeneration = apiRequestGenerationRef.current
+    const requestBaseUrl = apiBaseUrl
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+
     setNumbers('')
     setAnalysis(null)
     setStatus('idle')
     setError('')
 
     try {
-      const refreshedGames = await fetchGames(apiBaseUrl)
+      const refreshedGames = await fetchGames(requestBaseUrl)
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
       setGames(refreshedGames)
       setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
       setSelectedGame(
@@ -976,6 +1030,7 @@ export default function App() {
           : refreshedGames[0]?.fileName ?? '',
       )
     } catch (refreshError) {
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
       setError(
         refreshError instanceof Error
           ? `Excel was generated, but the game list could not refresh: ${refreshError.message}`
@@ -985,12 +1040,17 @@ export default function App() {
   }
 
   const chartFileRemoved = async (removedFileName) => {
+    const requestGeneration = apiRequestGenerationRef.current
+    const requestBaseUrl = apiBaseUrl
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+
     setNumbers('')
     setAnalysis(null)
     setStatus('idle')
 
     try {
-      const refreshedGames = await fetchGames(apiBaseUrl)
+      const refreshedGames = await fetchGames(requestBaseUrl)
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
       setGames(refreshedGames)
       setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
       setSelectedGame((currentGame) => (
@@ -999,6 +1059,7 @@ export default function App() {
           : refreshedGames[0]?.fileName ?? ''
       ))
     } catch (refreshError) {
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
       setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh the game list.')
     }
   }
@@ -1096,6 +1157,10 @@ export default function App() {
 
   const runAnalysis = async (event) => {
     event.preventDefault()
+    const requestGeneration = apiRequestGenerationRef.current
+    const requestBaseUrl = apiBaseUrl
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+
     setIsNumberAnalysisOpen(false)
     setIsPatternResponsesOpen(false)
     setPatternResponses([])
@@ -1115,7 +1180,7 @@ export default function App() {
 
     try {
       const requestAnalysis = async (guessNumbers, requestedPattern) => {
-        const response = await fetch(`${apiBaseUrl}/api/panel/analyze`, {
+        const response = await fetch(`${requestBaseUrl}/api/panel/analyze`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1184,11 +1249,15 @@ export default function App() {
         throw new Error('No pattern analysis was returned.')
       }
 
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+
       const responses = await Promise.all(
         selectedPredictionPatternOptions.map(
-          (option) => requestPatternPrediction(apiBaseUrl, option, data, aigSeriesDays),
+          (option) => requestPatternPrediction(requestBaseUrl, option, data, aigSeriesDays),
         ),
       )
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+
       const analysisWithPredictions = addPredictionResultsToAnalysis(
         data,
         responses,
@@ -1200,6 +1269,7 @@ export default function App() {
       setNumbers(latestCount ? data.guessNumbers : '')
       setStatus('success')
     } catch (requestError) {
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
       setAnalysis(null)
       setPatternResponses([])
       setStatus('error')
@@ -1212,6 +1282,7 @@ export default function App() {
       <ChartFilesPage
         apiBaseUrl={apiBaseUrl}
         apiEnvironmentKey={apiEnvironmentKey}
+        key={apiEnvironmentKey}
         onApiEnvironmentChange={changeApiEnvironment}
         onBack={() => navigateToPage('explorer')}
         onGenerated={chartFileGenerated}

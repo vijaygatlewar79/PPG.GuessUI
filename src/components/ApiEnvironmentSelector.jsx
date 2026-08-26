@@ -6,7 +6,6 @@ export default function ApiEnvironmentSelector({ disabled = false, onChange, val
   const hostId = `${selectId}-host`
   const selectedEnvironment = getApiEnvironment(value)
   const endpointTitle = selectedEnvironment.baseUrl
-    || 'Requests use the Vite development proxy to localhost:5288.'
 
   return (
     <div className="api-environment-selector">

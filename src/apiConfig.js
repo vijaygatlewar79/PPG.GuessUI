@@ -5,7 +5,7 @@ const normalizeEnvironmentKey = (value) => String(value ?? '').trim().toLowerCas
 
 const developmentBaseUrl = normalizeBaseUrl(
   import.meta.env.VITE_DEVELOPMENT_API_BASE_URL ?? import.meta.env.VITE_API_BASE_URL,
-)
+) || 'http://localhost:5288'
 const productionBaseUrl = normalizeBaseUrl(import.meta.env.VITE_PRODUCTION_API_BASE_URL)
   || 'https://ppgguessapi-a2gbfjgva2gnancn.centralindia-01.azurewebsites.net'
 const configuredDefaultEnvironmentKey = normalizeEnvironmentKey(
@@ -33,7 +33,7 @@ export const API_ENVIRONMENTS = Object.freeze([
     key: 'development',
     label: 'Development',
     baseUrl: developmentBaseUrl,
-    hostLabel: getHostLabel(developmentBaseUrl, 'localhost:5288 via Vite proxy'),
+    hostLabel: getHostLabel(developmentBaseUrl, 'localhost:5288'),
   }),
   Object.freeze({
     key: 'production',

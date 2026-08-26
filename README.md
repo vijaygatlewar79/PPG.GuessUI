@@ -17,7 +17,7 @@ Open `http://localhost:5173`, enter a comma-separated sequence such as `2,1,9`, 
 
 Use the **API environment** selector in the page header to switch every request between:
 
-- **Development** — `http://localhost:5288` through the Vite development proxy.
+- **Development** — `http://localhost:5288`.
 - **Production** — `https://ppgguessapi-a2gbfjgva2gnancn.centralindia-01.azurewebsites.net`.
 
 The selection is saved in the browser. Development is the default for `npm run dev`, while
