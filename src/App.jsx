@@ -347,6 +347,17 @@ function ChartFilesPage({
         const problem = await response.json().catch(() => null)
         throw new Error(getProblemMessage(problem, `Open request failed with status ${response.status}.`))
       }
+
+      const file = await response.blob()
+      const objectUrl = URL.createObjectURL(file)
+      const downloadLink = document.createElement('a')
+      downloadLink.href = objectUrl
+      downloadLink.download = source.fileName
+      downloadLink.style.display = 'none'
+      document.body.appendChild(downloadLink)
+      downloadLink.click()
+      downloadLink.remove()
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to open the Excel file.')
     } finally {
@@ -1171,7 +1182,7 @@ export default function App() {
     }
 
     if (!selectedGame) {
-      setError('No Excel game file is available. Add an .xlsx or .xlsm file to the API Files folder.')
+      setError('No Excel game file is available. Upload an .xlsx or .xlsm blob to the Azure files container.')
       return
     }
 
