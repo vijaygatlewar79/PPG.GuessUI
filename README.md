@@ -13,6 +13,16 @@ npm run dev
 
 Open `http://localhost:5173`, enter a comma-separated sequence such as `2,1,9`, and click **Run Analysis**.
 
+## API environments
+
+Use the **API environment** selector in the page header to switch every request between:
+
+- **Development** — `http://localhost:5288` through the Vite development proxy.
+- **Production** — `https://ppgguessapi-a2gbfjgva2gnancn.centralindia-01.azurewebsites.net`.
+
+The selection is saved in the browser. Development is the default for `npm run dev`, while
+Production is the default for production builds.
+
 Select **AIG Pattern** and use **AIG Series Days** to choose how many latest valid daily values
 from Current Data are sent to `/api/pattern-prediction`. The default is 30; enter another positive
 whole number such as 40, or leave it blank to send all available values. After the analysis
@@ -24,8 +34,12 @@ forecasts each known next digit using only the preceding values, checks that for
 actual digit, and applies the strongest recently validated rule to the final digit. Both AIG modes
 return three unique predictions ranked strongest first.
 
-For a different API host, create `.env.local` with:
+To override an endpoint or the default selection, create `.env.local` with any of these settings:
 
 ```text
-VITE_API_BASE_URL=http://your-api-host
+VITE_DEVELOPMENT_API_BASE_URL=http://your-development-api-host
+VITE_PRODUCTION_API_BASE_URL=https://your-production-api-host
+VITE_DEFAULT_API_ENVIRONMENT=development
 ```
+
+`VITE_API_BASE_URL` remains supported as an alias for the Development endpoint.

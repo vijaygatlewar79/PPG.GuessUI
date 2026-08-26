@@ -145,6 +145,62 @@ h1 {
   gap: 10px;
 }
 
+.api-environment-selector {
+  display: grid;
+  grid-template-areas:
+    "label select"
+    "host host";
+  grid-template-columns: auto minmax(7.5rem, 1fr);
+  align-items: center;
+  gap: 3px 7px;
+  min-width: 13.5rem;
+  padding: 6px 8px;
+  color: #fff;
+  background: rgba(12, 37, 60, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+}
+
+.api-environment-selector label {
+  grid-area: label;
+  color: #cde2f4;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.api-environment-selector select {
+  grid-area: select;
+  min-width: 0;
+  padding: 4px 7px;
+  color: #24445f;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.api-environment-selector select:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.api-environment-host {
+  grid-area: host;
+  min-width: 0;
+  overflow: hidden;
+  color: #e6f0f8;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .generate-link {
   padding: 8px 13px;
   color: #fff;
@@ -2004,6 +2060,15 @@ tbody tr:hover td {
     width: 100%;
     flex-wrap: wrap;
     justify-content: space-between;
+  }
+
+  .api-environment-selector {
+    width: 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .api-environment-host {
+    text-align: left;
   }
 
   .chart-files-card-header {

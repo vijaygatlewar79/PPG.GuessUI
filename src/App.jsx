@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ApiEnvironmentSelector from './components/ApiEnvironmentSelector'
 import PageHeader from './components/PageHeader'
 import CurrentDataSection from './components/explorer/CurrentDataSection'
 import MatchLinesSection from './components/explorer/MatchLinesSection'
@@ -13,6 +14,11 @@ import {
   patternOptions,
   predictionPatternOptions,
 } from './components/explorer/patternOptions'
+import {
+  getApiEnvironment,
+  loadApiEnvironmentKey,
+  saveApiEnvironmentKey,
+} from './apiConfig'
 
 const dataSheetPath = '/DataSheet'
 
@@ -21,9 +27,7 @@ function getPageFromPath() {
   return path.toLowerCase() === dataSheetPath.toLowerCase() ? 'excel-files' : 'explorer'
 }
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
-
-async function fetchGames(signal) {
+async function fetchGames(apiBaseUrl, signal) {
   const response = await fetch(`${apiBaseUrl}/api/panel/games`, { signal })
   if (!response.ok) {
     throw new Error(`Game list request failed with status ${response.status}.`)
@@ -125,7 +129,7 @@ function ChartGeneratorModal({
   )
 }
 
-function AddChartSourceModal({ onClose, onCreated, source = null }) {
+function AddChartSourceModal({ apiBaseUrl, onClose, onCreated, source = null }) {
   const isUpdate = Boolean(source)
   const [fileName, setFileName] = useState(source?.fileName ?? '')
   const [displayName, setDisplayName] = useState(source?.displayName ?? '')
@@ -260,7 +264,14 @@ function AddChartSourceModal({ onClose, onCreated, source = null }) {
   )
 }
 
-function ChartFilesPage({ onBack, onGenerated, onRemoved }) {
+function ChartFilesPage({
+  apiBaseUrl,
+  apiEnvironmentKey,
+  onApiEnvironmentChange,
+  onBack,
+  onGenerated,
+  onRemoved,
+}) {
   const [sources, setSources] = useState([])
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
@@ -290,9 +301,12 @@ function ChartFilesPage({ onBack, onGenerated, onRemoved }) {
 
   useEffect(() => {
     const controller = new AbortController()
+    setSources([])
+    setStatus('loading')
+    setError('')
     loadSources(controller.signal)
     return () => controller.abort()
-  }, [])
+  }, [apiBaseUrl])
 
   const sourceCreated = async (result) => {
     await loadSources()
@@ -368,7 +382,16 @@ function ChartFilesPage({ onBack, onGenerated, onRemoved }) {
   return (
     <main className="page-shell chart-files-page">
       <PageHeader
-        actions={<button className="generate-link" onClick={onBack} type="button">Back to Explorer</button>}
+        actions={(
+          <>
+            <ApiEnvironmentSelector
+              disabled={Boolean(openingFileName || removingFileName)}
+              onChange={onApiEnvironmentChange}
+              value={apiEnvironmentKey}
+            />
+            <button className="generate-link" onClick={onBack} type="button">Back to Explorer</button>
+          </>
+        )}
       />
 
       <section className="chart-files-card">
@@ -448,6 +471,7 @@ function ChartFilesPage({ onBack, onGenerated, onRemoved }) {
 
       {isAddOpen && (
         <AddChartSourceModal
+          apiBaseUrl={apiBaseUrl}
           onClose={closeSourceEditor}
           onCreated={sourceCreated}
           source={editingSource}
@@ -631,7 +655,7 @@ function getPredictedNumbers(data, patternLabel) {
   throw new Error(`${patternLabel} did not return a valid next predicted number.`)
 }
 
-async function requestPatternPrediction(option, analysis, configuredSeriesDays) {
+async function requestPatternPrediction(apiBaseUrl, option, analysis, configuredSeriesDays) {
   const seriesDayLimit = getSeriesDayLimit(configuredSeriesDays)
   const series = getCurrentDataSeries(analysis, seriesDayLimit)
   if (series.length === 0) {
@@ -747,6 +771,7 @@ function combinePatternAnalyses(patternAnalyses) {
 
 export default function App() {
   const [activePage, setActivePage] = useState(getPageFromPath)
+  const [apiEnvironmentKey, setApiEnvironmentKey] = useState(loadApiEnvironmentKey)
   const [games, setGames] = useState([])
   const [selectedPatterns, setSelectedPatterns] = useState(['Sequence'])
   const [selectedGame, setSelectedGame] = useState('')
@@ -769,13 +794,18 @@ export default function App() {
   const [generatorResult, setGeneratorResult] = useState(null)
   const [patternResponses, setPatternResponses] = useState([])
   const [isPatternResponsesOpen, setIsPatternResponsesOpen] = useState(false)
+  const apiBaseUrl = getApiEnvironment(apiEnvironmentKey).baseUrl
 
   useEffect(() => {
     const controller = new AbortController()
 
     const loadGames = async () => {
       try {
-        const data = await fetchGames(controller.signal)
+        setGames([])
+        setSelectedGame('')
+        setGamesStatus('loading')
+        setError('')
+        const data = await fetchGames(apiBaseUrl, controller.signal)
         setGames(data)
         setSelectedGame(data[0]?.fileName ?? '')
         setGamesStatus(data.length > 0 ? 'success' : 'empty')
@@ -791,7 +821,7 @@ export default function App() {
 
     loadGames()
     return () => controller.abort()
-  }, [])
+  }, [apiBaseUrl])
 
   useEffect(() => {
     const handlePopState = () => setActivePage(getPageFromPath())
@@ -806,6 +836,23 @@ export default function App() {
     }
     setActivePage(page)
     window.scrollTo({ top: 0 })
+  }
+
+  const changeApiEnvironment = (nextEnvironmentKey) => {
+    const savedEnvironmentKey = saveApiEnvironmentKey(nextEnvironmentKey)
+    if (savedEnvironmentKey === apiEnvironmentKey) return
+
+    setApiEnvironmentKey(savedEnvironmentKey)
+    setNumbers('')
+    setAnalysis(null)
+    setStatus('idle')
+    setError('')
+    setPatternResponses([])
+    setIsPatternResponsesOpen(false)
+    setIsNumberAnalysisOpen(false)
+    setIsGeneratorOpen(false)
+    setGeneratorError('')
+    setGeneratorResult(null)
   }
 
   const selectedGameDetails = games.find((game) => game.fileName === selectedGame)
@@ -885,7 +932,7 @@ export default function App() {
       setError('')
 
       try {
-        const refreshedGames = await fetchGames()
+        const refreshedGames = await fetchGames(apiBaseUrl)
         setGames(refreshedGames)
         setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
         setSelectedGame(
@@ -913,7 +960,7 @@ export default function App() {
     setError('')
 
     try {
-      const refreshedGames = await fetchGames()
+      const refreshedGames = await fetchGames(apiBaseUrl)
       setGames(refreshedGames)
       setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
       setSelectedGame(
@@ -936,7 +983,7 @@ export default function App() {
     setStatus('idle')
 
     try {
-      const refreshedGames = await fetchGames()
+      const refreshedGames = await fetchGames(apiBaseUrl)
       setGames(refreshedGames)
       setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
       setSelectedGame((currentGame) => (
@@ -1132,7 +1179,7 @@ export default function App() {
 
       const responses = await Promise.all(
         selectedPredictionPatternOptions.map(
-          (option) => requestPatternPrediction(option, data, aigSeriesDays),
+          (option) => requestPatternPrediction(apiBaseUrl, option, data, aigSeriesDays),
         ),
       )
       const analysisWithPredictions = addPredictionResultsToAnalysis(
@@ -1156,6 +1203,9 @@ export default function App() {
   if (activePage === 'excel-files') {
     return (
       <ChartFilesPage
+        apiBaseUrl={apiBaseUrl}
+        apiEnvironmentKey={apiEnvironmentKey}
+        onApiEnvironmentChange={changeApiEnvironment}
         onBack={() => navigateToPage('explorer')}
         onGenerated={chartFileGenerated}
         onRemoved={chartFileRemoved}
@@ -1168,6 +1218,11 @@ export default function App() {
       <PageHeader
         actions={(
           <>
+            <ApiEnvironmentSelector
+              disabled={status === 'loading' || generatorStatus === 'loading'}
+              onChange={changeApiEnvironment}
+              value={apiEnvironmentKey}
+            />
             <button className="generate-link" onClick={() => navigateToPage('excel-files')} type="button">
               Excel Files
             </button>
