@@ -774,6 +774,11 @@ h1 {
   background: #416f97;
 }
 
+.number-analysis-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .result-action-group {
   display: flex;
   flex-wrap: wrap;
@@ -1329,6 +1334,102 @@ tbody tr:hover td {
   border: 1px solid #c8d4df;
   border-radius: 13px;
   box-shadow: 0 24px 70px rgba(11, 29, 45, 0.3);
+}
+
+.last-week-analysis-modal {
+  width: min(100%, 760px);
+}
+
+.last-week-analysis-body {
+  min-height: 170px;
+  max-height: 480px;
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.last-week-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 130px;
+  color: #45637d;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.last-week-loading .spinner {
+  width: 24px;
+  height: 24px;
+}
+
+.last-week-analysis-table {
+  width: 100%;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #cbd9e4;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+}
+
+.last-week-analysis-table th,
+.last-week-analysis-table td {
+  padding: 11px 13px;
+  border-right: 1px solid #d3dee7;
+  border-bottom: 1px solid #d3dee7;
+  text-align: left;
+}
+
+.last-week-analysis-table th {
+  color: #fff;
+  background: #5e84a5;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.82rem;
+}
+
+.last-week-analysis-table th:first-child,
+.last-week-analysis-table td:first-child {
+  width: 76px;
+  text-align: center;
+}
+
+.last-week-analysis-table td.pass-number {
+  width: 112px;
+  text-align: center;
+}
+
+.last-week-analysis-table th:last-child,
+.last-week-analysis-table td.analysis-result {
+  width: 100px;
+  text-align: center;
+}
+
+.last-week-analysis-table th:last-child,
+.last-week-analysis-table td:last-child {
+  border-right: 0;
+}
+
+.last-week-analysis-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.last-week-analysis-table td {
+  color: #294862;
+  font-size: 0.84rem;
+}
+
+.last-week-analysis-table td.pass-number strong,
+.last-week-analysis-table td.analysis-result strong {
+  letter-spacing: 0.04em;
+}
+
+.last-week-analysis-table td.analysis-result.passed {
+  color: #157347;
+}
+
+.last-week-analysis-table td.analysis-result.failed {
+  color: #b42318;
 }
 
 .pattern-response-modal {

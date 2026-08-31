@@ -1,47 +1,47 @@
-import { useEffect, useRef, useState } from 'react'
-import ApiEnvironmentSelector from './components/ApiEnvironmentSelector'
-import PageHeader from './components/PageHeader'
-import CurrentDataSection from './components/explorer/CurrentDataSection'
-import MatchLinesSection from './components/explorer/MatchLinesSection'
-import NextNumberCountSection from './components/explorer/NextNumberCountSection'
-import OriginalPanelDataSection from './components/explorer/OriginalPanelDataSection'
-import PatternResponseModal from './components/explorer/PatternResponseModal'
-import SearchControls from './components/explorer/SearchControls'
-import ThreeTouchPatternSection from './components/explorer/ThreeTouchPatternSection'
-import { getCurrentDataSeries, getSeriesDayLimit } from './components/explorer/seriesSelection'
+import { useEffect, useRef, useState } from "react";
+import { getApiEnvironment } from "./apiConfig";
+import PageHeader from "./components/PageHeader";
+import CurrentDataSection from "./components/explorer/CurrentDataSection";
+import MatchLinesSection from "./components/explorer/MatchLinesSection";
+import NextNumberCountSection from "./components/explorer/NextNumberCountSection";
+import OriginalPanelDataSection from "./components/explorer/OriginalPanelDataSection";
+import PatternResponseModal from "./components/explorer/PatternResponseModal";
+import SearchControls from "./components/explorer/SearchControls";
+import ThreeTouchPatternSection from "./components/explorer/ThreeTouchPatternSection";
+import {
+  getCurrentDataSeries,
+  getSeriesDayLimit,
+} from "./components/explorer/seriesSelection";
 import {
   panelPatternOptions,
   patternOptions,
   predictionPatternOptions,
-} from './components/explorer/patternOptions'
-import {
-  getApiEnvironment,
-  loadApiEnvironmentKey,
-  saveApiEnvironmentKey,
-} from './apiConfig'
+} from "./components/explorer/patternOptions";
 
-const dataSheetPath = '/DataSheet'
+const dataSheetPath = "/DataSheet";
 
 function getPageFromPath() {
-  const path = window.location.pathname.replace(/\/+$/, '') || '/'
-  return path.toLowerCase() === dataSheetPath.toLowerCase() ? 'excel-files' : 'explorer'
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  return path.toLowerCase() === dataSheetPath.toLowerCase()
+    ? "excel-files"
+    : "explorer";
 }
 
 async function fetchGames(apiBaseUrl, signal) {
-  const response = await fetch(`${apiBaseUrl}/api/panel/games`, { signal })
+  const response = await fetch(`${apiBaseUrl}/api/panel/games`, { signal });
   if (!response.ok) {
-    throw new Error(`Game list request failed with status ${response.status}.`)
+    throw new Error(`Game list request failed with status ${response.status}.`);
   }
 
-  return response.json()
+  return response.json();
 }
 
 function getProblemMessage(problem, fallback) {
   if (problem?.errors) {
-    return Object.values(problem.errors).flat().find(Boolean) || fallback
+    return Object.values(problem.errors).flat().find(Boolean) || fallback;
   }
 
-  return problem?.detail || problem?.title || fallback
+  return problem?.detail || problem?.title || fallback;
 }
 
 function ChartGeneratorModal({
@@ -56,23 +56,36 @@ function ChartGeneratorModal({
   status,
   url,
 }) {
-  const isGenerating = status === 'loading'
-  const isLoadingOptions = status === 'loading-options'
-  const isLoading = isGenerating || isLoadingOptions
+  const isGenerating = status === "loading";
+  const isLoadingOptions = status === "loading-options";
+  const isLoading = isGenerating || isLoadingOptions;
 
   return (
     <div
       className="modal-backdrop"
-      onMouseDown={(event) => event.target === event.currentTarget && !isGenerating && onClose()}
+      onMouseDown={(event) =>
+        event.target === event.currentTarget && !isGenerating && onClose()
+      }
       role="presentation"
     >
-      <section aria-labelledby="chart-generator-title" aria-modal="true" className="generator-modal" role="dialog">
+      <section
+        aria-labelledby="chart-generator-title"
+        aria-modal="true"
+        className="generator-modal"
+        role="dialog"
+      >
         <header className="generator-modal-header">
           <div>
             <p className="modal-eyebrow">Panel data import</p>
             <h2 id="chart-generator-title">Generate Excel from URL</h2>
           </div>
-          <button aria-label="Close generator" className="modal-close" disabled={isGenerating} onClick={onClose} type="button">
+          <button
+            aria-label="Close generator"
+            className="modal-close"
+            disabled={isGenerating}
+            onClick={onClose}
+            type="button"
+          >
             &times;
           </button>
         </header>
@@ -88,14 +101,18 @@ function ChartGeneratorModal({
               required
               value={fileName}
             >
-              {sources.length === 0 && <option value="">No chart sources configured</option>}
+              {sources.length === 0 && (
+                <option value="">No chart sources configured</option>
+              )}
               {sources.map((source) => (
                 <option key={source.fileName} value={source.fileName}>
                   {source.displayName ?? source.fileName}
                 </option>
               ))}
             </select>
-            <span className="field-hint">Options are loaded from the API chart-sources.json file.</span>
+            <span className="field-hint">
+              Options are loaded from the API chart-sources.json file.
+            </span>
           </div>
 
           <div className="generator-field">
@@ -109,99 +126,156 @@ function ChartGeneratorModal({
               type="url"
               value={url}
             />
-            <span className="field-hint">Changing this URL and generating the file updates its JSON entry.</span>
+            <span className="field-hint">
+              Changing this URL and generating the file updates its JSON entry.
+            </span>
           </div>
 
-          {error && <div className="generator-message error" role="alert">{error}</div>}
+          {error && (
+            <div className="generator-message error" role="alert">
+              {error}
+            </div>
+          )}
           {result && (
             <div className="generator-message success" role="status">
-              <strong>{result.fileName}</strong> generated with {result.rowCount.toLocaleString()} rows and added to the game list.
+              <strong>{result.fileName}</strong> generated with{" "}
+              {result.rowCount.toLocaleString()} rows and added to the game
+              list.
             </div>
           )}
 
           <footer className="generator-actions">
-            <button className="secondary-button" disabled={isGenerating} onClick={onClose} type="button">
-              {result ? 'Close' : 'Cancel'}
+            <button
+              className="secondary-button"
+              disabled={isGenerating}
+              onClick={onClose}
+              type="button"
+            >
+              {result ? "Close" : "Cancel"}
             </button>
-            <button className="primary-button" disabled={isLoading} type="submit">
-              {isLoadingOptions ? 'Loading options...' : isGenerating ? 'Generating...' : result ? 'Generate again' : 'Generate Excel'}
+            <button
+              className="primary-button"
+              disabled={isLoading}
+              type="submit"
+            >
+              {isLoadingOptions
+                ? "Loading options..."
+                : isGenerating
+                  ? "Generating..."
+                  : result
+                    ? "Generate again"
+                    : "Generate Excel"}
             </button>
           </footer>
         </form>
       </section>
     </div>
-  )
+  );
 }
 
-function AddChartSourceModal({ apiBaseUrl, onClose, onCreated, source = null }) {
-  const isUpdate = Boolean(source)
-  const [fileName, setFileName] = useState(source?.fileName ?? '')
-  const [displayName, setDisplayName] = useState(source?.displayName ?? '')
-  const [url, setUrl] = useState(source?.url ?? '')
-  const [status, setStatus] = useState('idle')
-  const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
-  const isLoading = status === 'loading'
+function AddChartSourceModal({
+  apiBaseUrl,
+  onClose,
+  onCreated,
+  source = null,
+}) {
+  const isUpdate = Boolean(source);
+  const [fileName, setFileName] = useState(source?.fileName ?? "");
+  const [displayName, setDisplayName] = useState(source?.displayName ?? "");
+  const [url, setUrl] = useState(source?.url ?? "");
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState("");
+  const [result, setResult] = useState(null);
+  const isLoading = status === "loading";
 
   const submit = async (event) => {
-    event.preventDefault()
-    setStatus('loading')
-    setError('')
-    setResult(null)
+    event.preventDefault();
+    setStatus("loading");
+    setError("");
+    setResult(null);
 
     try {
       const response = await fetch(`${apiBaseUrl}/api/chart-export/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileName, displayName, url }),
-      })
-      const data = await response.json().catch(() => null)
+      });
+      const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(getProblemMessage(data, `Generation request failed with status ${response.status}.`))
+        throw new Error(
+          getProblemMessage(
+            data,
+            `Generation request failed with status ${response.status}.`,
+          ),
+        );
       }
 
-      if (source && data.fileName.toLowerCase() !== source.fileName.toLowerCase()) {
+      if (
+        source &&
+        data.fileName.toLowerCase() !== source.fileName.toLowerCase()
+      ) {
         const removeResponse = await fetch(
           `${apiBaseUrl}/api/chart-export/options?fileName=${encodeURIComponent(source.fileName)}&backupAction=Update`,
-          { method: 'DELETE' },
-        )
+          { method: "DELETE" },
+        );
 
         if (!removeResponse.ok) {
-          const problem = await removeResponse.json().catch(() => null)
+          const problem = await removeResponse.json().catch(() => null);
           await fetch(
             `${apiBaseUrl}/api/chart-export/options?fileName=${encodeURIComponent(data.fileName)}`,
-            { method: 'DELETE' },
-          ).catch(() => null)
-          throw new Error(getProblemMessage(
-            problem,
-            `The replacement was generated, but ${source.fileName} could not be removed.`,
-          ))
+            { method: "DELETE" },
+          ).catch(() => null);
+          throw new Error(
+            getProblemMessage(
+              problem,
+              `The replacement was generated, but ${source.fileName} could not be removed.`,
+            ),
+          );
         }
       }
 
-      setResult(data)
-      setStatus('success')
-      await onCreated(data)
+      setResult(data);
+      setStatus("success");
+      await onCreated(data);
     } catch (requestError) {
-      setStatus('error')
-      setError(requestError instanceof Error ? requestError.message : 'Unable to generate the Excel file.')
+      setStatus("error");
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to generate the Excel file.",
+      );
     }
-  }
+  };
 
   return (
     <div
       className="modal-backdrop"
-      onMouseDown={(event) => event.target === event.currentTarget && !isLoading && onClose()}
+      onMouseDown={(event) =>
+        event.target === event.currentTarget && !isLoading && onClose()
+      }
       role="presentation"
     >
-      <section aria-labelledby="add-chart-source-title" aria-modal="true" className="generator-modal" role="dialog">
+      <section
+        aria-labelledby="add-chart-source-title"
+        aria-modal="true"
+        className="generator-modal"
+        role="dialog"
+      >
         <header className="generator-modal-header">
           <div>
             <p className="modal-eyebrow">Chart Excel files</p>
-            <h2 id="add-chart-source-title">{isUpdate ? 'Update Excel File' : 'Add New Excel File'}</h2>
+            <h2 id="add-chart-source-title">
+              {isUpdate ? "Update Excel File" : "Add New Excel File"}
+            </h2>
           </div>
-          <button aria-label="Close" className="modal-close" disabled={isLoading} onClick={onClose} type="button">
+          <button
+            aria-label="Close"
+            className="modal-close"
+            disabled={isLoading}
+            onClick={onClose}
+            type="button"
+          >
             &times;
           </button>
         </header>
@@ -217,7 +291,9 @@ function AddChartSourceModal({ apiBaseUrl, onClose, onCreated, source = null }) 
               required
               value={fileName}
             />
-            <span className="field-hint">The API adds .xlsx when no supported extension is supplied.</span>
+            <span className="field-hint">
+              The API adds .xlsx when no supported extension is supplied.
+            </span>
           </div>
 
           <div className="generator-field">
@@ -243,29 +319,50 @@ function AddChartSourceModal({ apiBaseUrl, onClose, onCreated, source = null }) 
             />
           </div>
 
-          {error && <div className="generator-message error" role="alert">{error}</div>}
+          {error && (
+            <div className="generator-message error" role="alert">
+              {error}
+            </div>
+          )}
           {result && (
             <div className="generator-message success" role="status">
-              <strong>{result.fileName}</strong> {isUpdate ? 'updated' : 'generated'} with {result.rowCount.toLocaleString()} rows.
+              <strong>{result.fileName}</strong>{" "}
+              {isUpdate ? "updated" : "generated"} with{" "}
+              {result.rowCount.toLocaleString()} rows.
             </div>
           )}
 
           <footer className="generator-actions">
-            <button className="secondary-button" disabled={isLoading} onClick={onClose} type="button">
-              {result ? 'Close' : 'Cancel'}
+            <button
+              className="secondary-button"
+              disabled={isLoading}
+              onClick={onClose}
+              type="button"
+            >
+              {result ? "Close" : "Cancel"}
             </button>
-            <button className="primary-button" disabled={isLoading || Boolean(result)} type="submit">
+            <button
+              className="primary-button"
+              disabled={isLoading || Boolean(result)}
+              type="submit"
+            >
               {isLoading
-                ? isUpdate ? 'Updating...' : 'Generating...'
+                ? isUpdate
+                  ? "Updating..."
+                  : "Generating..."
                 : result
-                  ? isUpdate ? 'Updated' : 'Generated'
-                  : isUpdate ? 'Update Excel' : 'Generate Excel'}
+                  ? isUpdate
+                    ? "Updated"
+                    : "Generated"
+                  : isUpdate
+                    ? "Update Excel"
+                    : "Generate Excel"}
             </button>
           </footer>
         </form>
       </section>
     </div>
-  )
+  );
 }
 
 function ChartFilesPage({
@@ -276,137 +373,167 @@ function ChartFilesPage({
   onGenerated,
   onRemoved,
 }) {
-  const [sources, setSources] = useState([])
-  const [status, setStatus] = useState('loading')
-  const [error, setError] = useState('')
-  const [isAddOpen, setIsAddOpen] = useState(false)
-  const [editingSource, setEditingSource] = useState(null)
-  const [openingFileName, setOpeningFileName] = useState('')
-  const [removingFileName, setRemovingFileName] = useState('')
+  const [sources, setSources] = useState([]);
+  const [status, setStatus] = useState("loading");
+  const [error, setError] = useState("");
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingSource, setEditingSource] = useState(null);
+  const [openingFileName, setOpeningFileName] = useState("");
+  const [removingFileName, setRemovingFileName] = useState("");
 
   const loadSources = async (signal) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/api/chart-export/options`, { signal })
-      const data = await response.json().catch(() => null)
+      const response = await fetch(`${apiBaseUrl}/api/chart-export/options`, {
+        signal,
+      });
+      const data = await response.json().catch(() => null);
       if (!response.ok) {
-        throw new Error(getProblemMessage(data, `Options request failed with status ${response.status}.`))
+        throw new Error(
+          getProblemMessage(
+            data,
+            `Options request failed with status ${response.status}.`,
+          ),
+        );
       }
 
-      const nextSources = Array.isArray(data?.sources) ? data.sources : []
-      setSources(nextSources)
-      setStatus(nextSources.length > 0 ? 'success' : 'empty')
-      setError('')
+      const nextSources = Array.isArray(data?.sources) ? data.sources : [];
+      setSources(nextSources);
+      setStatus(nextSources.length > 0 ? "success" : "empty");
+      setError("");
     } catch (requestError) {
-      if (requestError instanceof DOMException && requestError.name === 'AbortError') return
-      setStatus('error')
-      setError(requestError instanceof Error ? requestError.message : 'Unable to load Excel files.')
+      if (
+        requestError instanceof DOMException &&
+        requestError.name === "AbortError"
+      )
+        return;
+      setStatus("error");
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to load Excel files.",
+      );
     }
-  }
+  };
 
   useEffect(() => {
-    const controller = new AbortController()
-    setSources([])
-    setStatus('loading')
-    setError('')
-    loadSources(controller.signal)
-    return () => controller.abort()
-  }, [apiBaseUrl])
+    const controller = new AbortController();
+    setSources([]);
+    setStatus("loading");
+    setError("");
+    loadSources(controller.signal);
+    return () => controller.abort();
+  }, [apiBaseUrl]);
 
   const sourceCreated = async (result) => {
-    await loadSources()
-    await onGenerated(result)
-  }
+    await loadSources();
+    await onGenerated(result);
+  };
 
   const openAddSource = () => {
-    setEditingSource(null)
-    setIsAddOpen(true)
-  }
+    setEditingSource(null);
+    setIsAddOpen(true);
+  };
 
   const openUpdateSource = (source) => {
-    setEditingSource(source)
-    setIsAddOpen(true)
-  }
+    setEditingSource(source);
+    setIsAddOpen(true);
+  };
 
   const closeSourceEditor = () => {
-    setIsAddOpen(false)
-    setEditingSource(null)
-  }
+    setIsAddOpen(false);
+    setEditingSource(null);
+  };
 
   const openFile = async (source) => {
-    setOpeningFileName(source.fileName)
-    setError('')
+    setOpeningFileName(source.fileName);
+    setError("");
 
     try {
       const response = await fetch(`${apiBaseUrl}/api/chart-export/open`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileName: source.fileName }),
-      })
+      });
 
       if (!response.ok) {
-        const problem = await response.json().catch(() => null)
-        throw new Error(getProblemMessage(problem, `Open request failed with status ${response.status}.`))
+        const problem = await response.json().catch(() => null);
+        throw new Error(
+          getProblemMessage(
+            problem,
+            `Open request failed with status ${response.status}.`,
+          ),
+        );
       }
 
-      const file = await response.blob()
-      const objectUrl = URL.createObjectURL(file)
-      const downloadLink = document.createElement('a')
-      downloadLink.href = objectUrl
-      downloadLink.download = source.fileName
-      downloadLink.style.display = 'none'
-      document.body.appendChild(downloadLink)
-      downloadLink.click()
-      downloadLink.remove()
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+      const file = await response.blob();
+      const objectUrl = URL.createObjectURL(file);
+      const downloadLink = document.createElement("a");
+      downloadLink.href = objectUrl;
+      downloadLink.download = source.fileName;
+      downloadLink.style.display = "none";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Unable to open the Excel file.')
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to open the Excel file.",
+      );
     } finally {
-      setOpeningFileName('')
+      setOpeningFileName("");
     }
-  }
+  };
 
   const removeSource = async (source) => {
     const confirmed = window.confirm(
       `Remove "${source.displayName}"? The current ${source.fileName} will be saved in a dated backup before it and its JSON configuration are removed.`,
-    )
-    if (!confirmed) return
+    );
+    if (!confirmed) return;
 
-    setRemovingFileName(source.fileName)
-    setError('')
+    setRemovingFileName(source.fileName);
+    setError("");
 
     try {
       const response = await fetch(
         `${apiBaseUrl}/api/chart-export/options?fileName=${encodeURIComponent(source.fileName)}`,
-        { method: 'DELETE' },
-      )
+        { method: "DELETE" },
+      );
 
       if (!response.ok) {
-        const problem = await response.json().catch(() => null)
-        throw new Error(getProblemMessage(problem, `Remove request failed with status ${response.status}.`))
+        const problem = await response.json().catch(() => null);
+        throw new Error(
+          getProblemMessage(
+            problem,
+            `Remove request failed with status ${response.status}.`,
+          ),
+        );
       }
 
-      await loadSources()
-      await onRemoved(source.fileName)
+      await loadSources();
+      await onRemoved(source.fileName);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : 'Unable to remove the Excel file.')
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to remove the Excel file.",
+      );
     } finally {
-      setRemovingFileName('')
+      setRemovingFileName("");
     }
-  }
+  };
 
   return (
     <main className="page-shell chart-files-page">
       <PageHeader
-        actions={(
+        actions={
           <>
-            <ApiEnvironmentSelector
-              disabled={Boolean(openingFileName || removingFileName)}
-              onChange={onApiEnvironmentChange}
-              value={apiEnvironmentKey}
-            />
-            <button className="generate-link" onClick={onBack} type="button">Back to Explorer</button>
+            <button className="generate-link" onClick={onBack} type="button">
+              Back to Explorer
+            </button>
           </>
-        )}
+        }
       />
 
       <section className="chart-files-card">
@@ -414,23 +541,37 @@ function ChartFilesPage({
           <div>
             <h2>Generated Chart Excel Files</h2>
             <p>
-              Manage {sources.length.toLocaleString()} configured file{sources.length === 1 ? '' : 's'} and their game-selector names.
+              Manage {sources.length.toLocaleString()} configured file
+              {sources.length === 1 ? "" : "s"} and their game-selector names.
             </p>
           </div>
-          <button className="primary-button add-chart-file-button" onClick={openAddSource} type="button">
+          <button
+            className="primary-button add-chart-file-button"
+            onClick={openAddSource}
+            type="button"
+          >
             + Add New
           </button>
         </header>
 
-        {status === 'loading' && <div className="chart-files-state">Loading Excel files...</div>}
-        {error && <div className="generator-message error chart-files-error" role="alert">{error}</div>}
-        {status === 'empty' && (
+        {status === "loading" && (
+          <div className="chart-files-state">Loading Excel files...</div>
+        )}
+        {error && (
+          <div
+            className="generator-message error chart-files-error"
+            role="alert"
+          >
+            {error}
+          </div>
+        )}
+        {status === "empty" && (
           <div className="chart-files-state">
             <strong>No Excel files configured</strong>
             <span>Use Add New to generate the first chart workbook.</span>
           </div>
         )}
-        {status === 'success' && (
+        {status === "success" && (
           <div className="chart-files-table-wrap">
             <table className="chart-files-table">
               <thead>
@@ -444,35 +585,64 @@ function ChartFilesPage({
               <tbody>
                 {sources.map((source) => (
                   <tr key={source.fileName}>
-                    <td><strong>{source.displayName}</strong></td>
-                    <td><code>{source.fileName}</code></td>
-                    <td><a href={source.url} rel="noopener noreferrer" target="_blank">{source.url}</a></td>
+                    <td>
+                      <strong>{source.displayName}</strong>
+                    </td>
+                    <td>
+                      <code>{source.fileName}</code>
+                    </td>
+                    <td>
+                      <a
+                        href={source.url}
+                        rel="noopener noreferrer"
+                        target="_blank"
+                      >
+                        {source.url}
+                      </a>
+                    </td>
                     <td>
                       <div className="chart-file-actions">
                         <button
                           className="open-chart-file-button"
-                          disabled={Boolean(openingFileName || removingFileName)}
+                          disabled={Boolean(
+                            openingFileName || removingFileName,
+                          )}
                           onClick={() => openFile(source)}
                           type="button"
                         >
-                          {openingFileName === source.fileName ? 'Opening...' : 'Open File'}
+                          {openingFileName === source.fileName
+                            ? "Opening..."
+                            : "Open File"}
                         </button>
                         <button
                           className="update-chart-file-button"
-                          disabled={Boolean(openingFileName || removingFileName)}
+                          disabled={Boolean(
+                            openingFileName || removingFileName,
+                          )}
                           onClick={() => openUpdateSource(source)}
                           type="button"
                         >
                           Update
                         </button>
-                        <a className="source-open-button" href={source.url} rel="noopener noreferrer" target="_blank">Open URL</a>
+                        <a
+                          className="source-open-button"
+                          href={source.url}
+                          rel="noopener noreferrer"
+                          target="_blank"
+                        >
+                          Open URL
+                        </a>
                         <button
                           className="remove-chart-file-button"
-                          disabled={Boolean(openingFileName || removingFileName)}
+                          disabled={Boolean(
+                            openingFileName || removingFileName,
+                          )}
                           onClick={() => removeSource(source)}
                           type="button"
                         >
-                          {removingFileName === source.fileName ? 'Removing...' : 'Remove'}
+                          {removingFileName === source.fileName
+                            ? "Removing..."
+                            : "Remove"}
                         </button>
                       </div>
                     </td>
@@ -493,48 +663,59 @@ function ChartFilesPage({
         />
       )}
     </main>
-  )
+  );
 }
 
 function getRankedGuessNumbers(analysis) {
-  const groups = analysis.patternGroups ?? [{
-    label: patternOptions.find((option) => option.value === analysis.pattern)?.label ?? 'Selected Pattern',
-    nextNumberCounts: analysis.nextNumberCounts,
-  }]
-  const totals = new Map()
+  const groups = analysis.patternGroups ?? [
+    {
+      label:
+        patternOptions.find((option) => option.value === analysis.pattern)
+          ?.label ?? "Selected Pattern",
+      nextNumberCounts: analysis.nextNumberCounts,
+    },
+  ];
+  const totals = new Map();
 
   groups.forEach((group) => {
     group.nextNumberCounts.forEach((row) => {
-      const key = String(row.number)
-      const current = totals.get(key) ?? { number: key, total: 0, patterns: [] }
-      const count = Number(row.count) || 0
+      const key = String(row.number);
+      const current = totals.get(key) ?? {
+        number: key,
+        total: 0,
+        patterns: [],
+      };
+      const count = Number(row.count) || 0;
 
-      current.total += count
-      current.patterns.push({ count, label: group.label })
-      totals.set(key, current)
-    })
-  })
+      current.total += count;
+      current.patterns.push({ count, label: group.label });
+      totals.set(key, current);
+    });
+  });
 
   return [...totals.values()].sort(
-    (first, second) => second.total - first.total || first.number.localeCompare(second.number, undefined, { numeric: true }),
-  )
+    (first, second) =>
+      second.total - first.total ||
+      first.number.localeCompare(second.number, undefined, { numeric: true }),
+  );
 }
 
 function NumberAnalysisModal({ analysis, onClose }) {
-  const [topCount, setTopCount] = useState('all')
-  const allRankedNumbers = getRankedGuessNumbers(analysis)
-  const rankedNumbers = topCount === 'all'
-    ? allRankedNumbers
-    : allRankedNumbers.slice(0, Number(topCount))
+  const [topCount, setTopCount] = useState("all");
+  const allRankedNumbers = getRankedGuessNumbers(analysis);
+  const rankedNumbers =
+    topCount === "all"
+      ? allRankedNumbers
+      : allRankedNumbers.slice(0, Number(topCount));
 
   useEffect(() => {
     const closeOnEscape = (event) => {
-      if (event.key === 'Escape') onClose()
-    }
+      if (event.key === "Escape") onClose();
+    };
 
-    document.addEventListener('keydown', closeOnEscape)
-    return () => document.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
 
   return (
     <div
@@ -542,13 +723,23 @@ function NumberAnalysisModal({ analysis, onClose }) {
       onMouseDown={(event) => event.target === event.currentTarget && onClose()}
       role="presentation"
     >
-      <section aria-labelledby="number-analysis-title" aria-modal="true" className="number-analysis-modal" role="dialog">
+      <section
+        aria-labelledby="number-analysis-title"
+        aria-modal="true"
+        className="number-analysis-modal"
+        role="dialog"
+      >
         <header className="number-analysis-header">
           <div>
             <p className="modal-eyebrow">Next number count</p>
             <h2 id="number-analysis-title">Guess Number Analysis</h2>
           </div>
-          <button aria-label="Close analysis" className="modal-close" onClick={onClose} type="button">
+          <button
+            aria-label="Close analysis"
+            className="modal-close"
+            onClick={onClose}
+            type="button"
+          >
             &times;
           </button>
         </header>
@@ -556,7 +747,9 @@ function NumberAnalysisModal({ analysis, onClose }) {
         <div className="number-analysis-controls">
           <div>
             <strong>Best-ranked guesses</strong>
-            <span>Combined by occurrence count across the selected patterns.</span>
+            <span>
+              Combined by occurrence count across the selected patterns.
+            </span>
           </div>
           <label htmlFor="analysis-top-count">
             Show
@@ -584,115 +777,222 @@ function NumberAnalysisModal({ analysis, onClose }) {
                   {item.patterns
                     .sort((first, second) => second.count - first.count)
                     .map((pattern) => (
-                      <span key={pattern.label}>{pattern.label}: {pattern.count}</span>
+                      <span key={pattern.label}>
+                        {pattern.label}: {pattern.count}
+                      </span>
                     ))}
                 </div>
               </div>
             </article>
           ))}
           {rankedNumbers.length === 0 && (
-            <div className="analysis-empty-state">No next-number data is available for analysis.</div>
+            <div className="analysis-empty-state">
+              No next-number data is available for analysis.
+            </div>
           )}
         </div>
       </section>
     </div>
-  )
+  );
+}
+
+function LastWeekAnalysisModal({ error, onClose, rows, status }) {
+  useEffect(() => {
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div
+      className="modal-backdrop"
+      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
+      role="presentation"
+    >
+      <section
+        aria-labelledby="last-week-analysis-title"
+        aria-modal="true"
+        className="number-analysis-modal last-week-analysis-modal"
+        role="dialog"
+      >
+        <header className="number-analysis-header">
+          <div>
+            <p className="modal-eyebrow">Next number count</p>
+            <h2 id="last-week-analysis-title">Analysis Last week</h2>
+          </div>
+          <button
+            aria-label="Close last week analysis"
+            className="modal-close"
+            onClick={onClose}
+            type="button"
+          >
+            &times;
+          </button>
+        </header>
+
+        <div className="last-week-analysis-body">
+          {status === "loading" && (
+            <div className="last-week-loading" role="status">
+              <span className="spinner" aria-hidden="true" />
+              Calculating the last seven days…
+            </div>
+          )}
+          {status === "error" && (
+            <div className="analysis-empty-state" role="alert">{error}</div>
+          )}
+          {status === "success" && (
+            <table className="last-week-analysis-table">
+              <thead>
+                <tr>
+                  <th>Sr No</th>
+                  <th>Day guess</th>
+                  <th>Numbers</th>
+                  <th>Pass Number</th>
+                  <th>Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => {
+                  const passNumber = String(row.passNumber ?? "").trim();
+                  const isPassed =
+                    passNumber !== "" &&
+                    row.numbers.some(
+                      (number) => String(number ?? "").trim() === passNumber,
+                    );
+
+                  return (
+                    <tr key={`${row.dayGuess}-${index}`}>
+                      <td><span className="serial-number">{index + 1}</span></td>
+                      <td>{row.dayGuess}</td>
+                      <td><strong>{row.numbers.join(", ") || "—"}</strong></td>
+                      <td className="pass-number"><strong>{passNumber || "—"}</strong></td>
+                      <td className={`analysis-result ${isPassed ? "passed" : "failed"}`}>
+                        <strong>{isPassed ? "Passed" : "Failed"}</strong>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function getLatestGuessNumbers(analysis, count, skipLastNumbers = 0) {
-  const numberCount = Number(count)
+  const numberCount = Number(count);
   if (!analysis || !numberCount) {
-    return ''
+    return "";
   }
 
   const latestNumbers = (analysis.latestNumbers ?? [])
-    .map((value) => String(value ?? '').trim())
-    .filter((value) => value && value !== '*')
+    .map((value) => String(value ?? "").trim())
+    .filter((value) => value && value !== "*");
   if (latestNumbers.length > 0) {
-    const skipCount = Number(skipLastNumbers) || 0
-    const calculationNumbers = skipCount > 0
-      ? latestNumbers.slice(0, -skipCount)
-      : latestNumbers
-    return calculationNumbers.slice(-numberCount).join(',')
+    const skipCount = Number(skipLastNumbers) || 0;
+    const calculationNumbers =
+      skipCount > 0 ? latestNumbers.slice(0, -skipCount) : latestNumbers;
+    return calculationNumbers.slice(-numberCount).join(",");
   }
 
-  const activeDays = getActivePanelDays(analysis)
+  const activeDays = getActivePanelDays(analysis);
   const values = [...(analysis.currentDataWeeks ?? [])]
     .reverse()
     .flatMap((week) => activeDays.map((day) => week.days?.[day]?.number))
-    .map((value) => String(value ?? '').trim())
-    .filter((value) => value && value !== '*')
+    .map((value) => String(value ?? "").trim())
+    .filter((value) => value && value !== "*");
 
-  return values.slice(-numberCount).join(',')
+  return values.slice(-numberCount).join(",");
 }
 
 function getActivePanelDays(analysis) {
   if (!analysis) {
-    return []
+    return [];
   }
 
-  const availableDays = analysis.availableDays ?? []
-  const panelRows = analysis.panelRows ?? []
-  const activeDays = availableDays.filter((day) => panelRows.some((row) => {
-    const panelDay = row.days?.[day]
-    return panelDay && [panelDay.open, panelDay.close, panelDay.pair].some(
-      (value) => String(value ?? '').trim() !== '',
-    )
-  }))
+  const availableDays = analysis.availableDays ?? [];
+  const panelRows = analysis.panelRows ?? [];
+  const activeDays = availableDays.filter((day) =>
+    panelRows.some((row) => {
+      const panelDay = row.days?.[day];
+      return (
+        panelDay &&
+        [panelDay.open, panelDay.close, panelDay.pair].some(
+          (value) => String(value ?? "").trim() !== "",
+        )
+      );
+    }),
+  );
 
-  return activeDays.length > 0 ? activeDays : availableDays
+  return activeDays.length > 0 ? activeDays : availableDays;
 }
 
 function getPredictedNumbers(data, patternLabel) {
   const structuredNumbers = Array.isArray(data?.predictedNumbers)
-    ? data.predictedNumbers.map((number) => String(number ?? '').trim())
-    : []
+    ? data.predictedNumbers.map((number) => String(number ?? "").trim())
+    : [];
   if (
-    structuredNumbers.length === 3
-    && structuredNumbers.every((number) => /^[0-9]$/.test(number))
-    && new Set(structuredNumbers).size === 3
+    structuredNumbers.length === 3 &&
+    structuredNumbers.every((number) => /^[0-9]$/.test(number)) &&
+    new Set(structuredNumbers).size === 3
   ) {
-    return structuredNumbers
+    return structuredNumbers;
   }
 
-  const structuredNumber = String(data?.predictedNumber ?? '').trim()
+  const structuredNumber = String(data?.predictedNumber ?? "").trim();
   if (/^[0-9]$/.test(structuredNumber)) {
-    return [structuredNumber]
+    return [structuredNumber];
   }
 
-  const markerMatch = String(data?.prediction ?? '').match(
+  const markerMatch = String(data?.prediction ?? "").match(
     /FINAL_PREDICTED_NUMBER\s*:\s*(?:\*\*)?([0-9])(?:\*\*)?/i,
-  )
+  );
   if (markerMatch) {
-    return [markerMatch[1]]
+    return [markerMatch[1]];
   }
 
-  throw new Error(`${patternLabel} did not return a valid next predicted number.`)
+  throw new Error(
+    `${patternLabel} did not return a valid next predicted number.`,
+  );
 }
 
-async function requestPatternPrediction(apiBaseUrl, option, analysis, configuredSeriesDays) {
-  const seriesDayLimit = getSeriesDayLimit(configuredSeriesDays)
-  const series = getCurrentDataSeries(analysis, seriesDayLimit)
+async function requestPatternPrediction(
+  apiBaseUrl,
+  option,
+  analysis,
+  configuredSeriesDays,
+) {
+  const seriesDayLimit = getSeriesDayLimit(configuredSeriesDays);
+  const series = getCurrentDataSeries(analysis, seriesDayLimit);
   if (series.length === 0) {
-    throw new Error(`${option.label} requires at least one valid Current Data value.`)
+    throw new Error(
+      `${option.label} requires at least one valid Current Data value.`,
+    );
   }
 
-  const seriesData = series.join(',')
+  const seriesData = series.join(",");
   const response = await fetch(`${apiBaseUrl}${option.endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      predictionMode: option.predictionMode ?? 'Standard',
+      predictionMode: option.predictionMode ?? "Standard",
       seriesData,
     }),
-  })
-  const data = await response.json().catch(() => null)
+  });
+  const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(getProblemMessage(
-      data,
-      `${option.label} request failed with status ${response.status}.`,
-    ))
+    throw new Error(
+      getProblemMessage(
+        data,
+        `${option.label} request failed with status ${response.status}.`,
+      ),
+    );
   }
 
   return {
@@ -704,20 +1004,26 @@ async function requestPatternPrediction(apiBaseUrl, option, analysis, configured
     prediction: data.prediction,
     seriesData,
     seriesDayLimit,
-  }
+  };
 }
 
-function addPredictionResultsToAnalysis(analysis, responses, selectedPanelOptions) {
+function addPredictionResultsToAnalysis(
+  analysis,
+  responses,
+  selectedPanelOptions,
+) {
   if (responses.length === 0) {
-    return analysis
+    return analysis;
   }
 
-  const panelGroups = analysis.patternGroups ?? selectedPanelOptions.map((option) => ({
-    label: option.label,
-    matchLines: analysis.matchLines,
-    nextNumberCounts: analysis.nextNumberCounts,
-    pattern: option.value,
-  }))
+  const panelGroups =
+    analysis.patternGroups ??
+    selectedPanelOptions.map((option) => ({
+      label: option.label,
+      matchLines: analysis.matchLines,
+      nextNumberCounts: analysis.nextNumberCounts,
+      pattern: option.value,
+    }));
   const predictionGroups = responses.map((response) => ({
     label: response.label,
     matchLines: [],
@@ -728,7 +1034,7 @@ function addPredictionResultsToAnalysis(analysis, responses, selectedPanelOption
       predictionRank: index + 1,
     })),
     pattern: response.pattern,
-  }))
+  }));
 
   return {
     ...analysis,
@@ -737,29 +1043,33 @@ function addPredictionResultsToAnalysis(analysis, responses, selectedPanelOption
       ...predictionGroups.flatMap((group) => group.nextNumberCounts),
     ],
     patternGroups: [...panelGroups, ...predictionGroups],
-  }
+  };
 }
 
 function createPredictionOnlyAnalysis(baseAnalysis, selectedPredictionOptions) {
   return {
     ...baseAnalysis,
-    guessNumbers: '',
+    guessNumbers: "",
     matchLines: [],
     matchingRowIds: [],
     nextNumberCounts: [],
-    pattern: selectedPredictionOptions.length === 1 ? selectedPredictionOptions[0].value : 'Multiple',
+    pattern:
+      selectedPredictionOptions.length === 1
+        ? selectedPredictionOptions[0].value
+        : "Multiple",
     patternGroups: [],
-    patternLabel: selectedPredictionOptions.length === 1
-      ? selectedPredictionOptions[0].label
-      : `${selectedPredictionOptions.length} AI Patterns`,
+    patternLabel:
+      selectedPredictionOptions.length === 1
+        ? selectedPredictionOptions[0].label
+        : `${selectedPredictionOptions.length} AI Patterns`,
     threeTouch: null,
-  }
+  };
 }
 
 function combinePatternAnalyses(patternAnalyses) {
-  const firstAnalysis = patternAnalyses[0]?.analysis
+  const firstAnalysis = patternAnalyses[0]?.analysis;
   if (!firstAnalysis) {
-    return null
+    return null;
   }
 
   const patternGroups = patternAnalyses.map(({ analysis, label, pattern }) => ({
@@ -767,433 +1077,477 @@ function combinePatternAnalyses(patternAnalyses) {
     matchLines: analysis.matchLines,
     nextNumberCounts: analysis.nextNumberCounts,
     pattern,
-  }))
-  const threeTouch = patternAnalyses.find(({ analysis }) => analysis.threeTouch)?.analysis.threeTouch ?? null
+  }));
+  const threeTouch =
+    patternAnalyses.find(({ analysis }) => analysis.threeTouch)?.analysis
+      .threeTouch ?? null;
 
   return {
     ...firstAnalysis,
-    pattern: patternAnalyses.length === panelPatternOptions.length ? 'All' : 'Multiple',
-    patternLabel: patternAnalyses.length === panelPatternOptions.length
-      ? 'All Pattern'
-      : `${patternAnalyses.length} Patterns`,
+    pattern:
+      patternAnalyses.length === panelPatternOptions.length
+        ? "All"
+        : "Multiple",
+    patternLabel:
+      patternAnalyses.length === panelPatternOptions.length
+        ? "All Pattern"
+        : `${patternAnalyses.length} Patterns`,
     matchLines: patternGroups.flatMap((group) => group.matchLines),
-    matchingRowIds: [...new Set(patternAnalyses.flatMap(({ analysis }) => analysis.matchingRowIds))],
+    matchingRowIds: [
+      ...new Set(
+        patternAnalyses.flatMap(({ analysis }) => analysis.matchingRowIds),
+      ),
+    ],
     nextNumberCounts: patternGroups.flatMap((group) => group.nextNumberCounts),
     patternGroups,
     threeTouch,
-  }
+  };
 }
 
 export default function App() {
-  const [activePage, setActivePage] = useState(getPageFromPath)
-  const [apiEnvironmentKey, setApiEnvironmentKey] = useState(loadApiEnvironmentKey)
-  const [games, setGames] = useState([])
-  const [selectedPatterns, setSelectedPatterns] = useState(['Sequence'])
-  const [selectedGame, setSelectedGame] = useState('')
-  const [gamesStatus, setGamesStatus] = useState('loading')
-  const [numberType, setNumberType] = useState('Open')
-  const [numbers, setNumbers] = useState('')
-  const [latestCount, setLatestCount] = useState('3')
-  const [aigSeriesDays, setAigSeriesDays] = useState('30')
-  const [skipLastNumbers, setSkipLastNumbers] = useState('1')
-  const [analysis, setAnalysis] = useState(null)
-  const [status, setStatus] = useState('idle')
-  const [error, setError] = useState('')
-  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false)
-  const [isNumberAnalysisOpen, setIsNumberAnalysisOpen] = useState(false)
-  const [generatorUrl, setGeneratorUrl] = useState('')
-  const [generatorFileName, setGeneratorFileName] = useState('')
-  const [generatorSources, setGeneratorSources] = useState([])
-  const [generatorStatus, setGeneratorStatus] = useState('idle')
-  const [generatorError, setGeneratorError] = useState('')
-  const [generatorResult, setGeneratorResult] = useState(null)
-  const [patternResponses, setPatternResponses] = useState([])
-  const [isPatternResponsesOpen, setIsPatternResponsesOpen] = useState(false)
-  const apiBaseUrl = getApiEnvironment(apiEnvironmentKey).baseUrl
-  const activeApiBaseUrlRef = useRef(apiBaseUrl)
-  const apiRequestGenerationRef = useRef(0)
-  const generatorOptionsRequestRef = useRef(0)
+  const [activePage, setActivePage] = useState(getPageFromPath);
+  const apiEnvironmentKey = import.meta.env.PROD
+    ? "production"
+    : "development";
+  const [games, setGames] = useState([]);
+  const [selectedPatterns, setSelectedPatterns] = useState(["Sequence"]);
+  const [selectedGame, setSelectedGame] = useState("");
+  const [gamesStatus, setGamesStatus] = useState("loading");
+  const [numberType, setNumberType] = useState("Open");
+  const [numbers, setNumbers] = useState("");
+  const [latestCount, setLatestCount] = useState("3");
+  const [aigSeriesDays, setAigSeriesDays] = useState("30");
+  const [skipLastNumbers, setSkipLastNumbers] = useState("1");
+  const [analysis, setAnalysis] = useState(null);
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState("");
+  const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
+  const [isNumberAnalysisOpen, setIsNumberAnalysisOpen] = useState(false);
+  const [isLastWeekAnalysisOpen, setIsLastWeekAnalysisOpen] = useState(false);
+  const [lastWeekAnalysisRows, setLastWeekAnalysisRows] = useState([]);
+  const [lastWeekAnalysisStatus, setLastWeekAnalysisStatus] = useState("idle");
+  const [lastWeekAnalysisError, setLastWeekAnalysisError] = useState("");
+  const [generatorUrl, setGeneratorUrl] = useState("");
+  const [generatorFileName, setGeneratorFileName] = useState("");
+  const [generatorSources, setGeneratorSources] = useState([]);
+  const [generatorStatus, setGeneratorStatus] = useState("idle");
+  const [generatorError, setGeneratorError] = useState("");
+  const [generatorResult, setGeneratorResult] = useState(null);
+  const [patternResponses, setPatternResponses] = useState([]);
+  const [isPatternResponsesOpen, setIsPatternResponsesOpen] = useState(false);
+  // In development, keep requests on the Vite origin so its /api proxy handles
+  // the backend connection without browser CORS or local HTTPS certificate issues.
+  const apiBaseUrl = import.meta.env.DEV
+    ? ""
+    : getApiEnvironment(apiEnvironmentKey).baseUrl;
+  const activeApiBaseUrlRef = useRef(apiBaseUrl);
+  const apiRequestGenerationRef = useRef(0);
+  const generatorOptionsRequestRef = useRef(0);
 
-  const isApiRequestCurrent = (requestGeneration, requestBaseUrl) => (
-    apiRequestGenerationRef.current === requestGeneration
-    && activeApiBaseUrlRef.current === requestBaseUrl
-  )
+  const isApiRequestCurrent = (requestGeneration, requestBaseUrl) =>
+    apiRequestGenerationRef.current === requestGeneration &&
+    activeApiBaseUrlRef.current === requestBaseUrl;
 
   useEffect(() => {
-    const controller = new AbortController()
-    const requestGeneration = apiRequestGenerationRef.current
-    const requestBaseUrl = apiBaseUrl
+    const controller = new AbortController();
+    const requestGeneration = apiRequestGenerationRef.current;
+    const requestBaseUrl = apiBaseUrl;
 
     const loadGames = async () => {
       try {
-        setGames([])
-        setSelectedGame('')
-        setGamesStatus('loading')
-        setError('')
-        const data = await fetchGames(requestBaseUrl, controller.signal)
-        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
-        setGames(data)
-        setSelectedGame(data[0]?.fileName ?? '')
-        setGamesStatus(data.length > 0 ? 'success' : 'empty')
+        setGames([]);
+        setSelectedGame("");
+        setGamesStatus("loading");
+        setError("");
+        const data = await fetchGames(requestBaseUrl, controller.signal);
+        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+        setGames(data);
+        setSelectedGame(data[0]?.fileName ?? "");
+        setGamesStatus(data.length > 0 ? "success" : "empty");
       } catch (requestError) {
         if (
-          (requestError instanceof DOMException && requestError.name === 'AbortError')
-          || !isApiRequestCurrent(requestGeneration, requestBaseUrl)
+          (requestError instanceof DOMException &&
+            requestError.name === "AbortError") ||
+          !isApiRequestCurrent(requestGeneration, requestBaseUrl)
         ) {
-          return
+          return;
         }
 
-        setGamesStatus('error')
-        setError(requestError instanceof Error ? requestError.message : 'Unable to load game files.')
+        setGamesStatus("error");
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load game files.",
+        );
       }
-    }
+    };
 
-    loadGames()
-    return () => controller.abort()
-  }, [apiBaseUrl])
+    loadGames();
+    return () => controller.abort();
+  }, [apiBaseUrl]);
 
   useEffect(() => {
-    const handlePopState = () => setActivePage(getPageFromPath())
-    window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
-  }, [])
+    const handlePopState = () => setActivePage(getPageFromPath());
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   const navigateToPage = (page) => {
-    const path = page === 'excel-files' ? dataSheetPath : '/'
+    const path = page === "excel-files" ? dataSheetPath : "/";
     if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path)
+      window.history.pushState({}, "", path);
     }
-    setActivePage(page)
-    window.scrollTo({ top: 0 })
-  }
+    setActivePage(page);
+    window.scrollTo({ top: 0 });
+  };
 
-  const changeApiEnvironment = (nextEnvironmentKey) => {
-    const savedEnvironmentKey = saveApiEnvironmentKey(nextEnvironmentKey)
-    if (savedEnvironmentKey === apiEnvironmentKey) return
+  // Environment selection removed for local development; this is a no-op.
+  const changeApiEnvironment = () => {};
 
-    const nextApiBaseUrl = getApiEnvironment(savedEnvironmentKey).baseUrl
-    activeApiBaseUrlRef.current = nextApiBaseUrl
-    apiRequestGenerationRef.current += 1
-    generatorOptionsRequestRef.current += 1
-    setApiEnvironmentKey(savedEnvironmentKey)
-    setGames([])
-    setSelectedGame('')
-    setGamesStatus('loading')
-    setNumbers('')
-    setAnalysis(null)
-    setStatus('idle')
-    setError('')
-    setPatternResponses([])
-    setIsPatternResponsesOpen(false)
-    setIsNumberAnalysisOpen(false)
-    setIsGeneratorOpen(false)
-    setGeneratorSources([])
-    setGeneratorFileName('')
-    setGeneratorUrl('')
-    setGeneratorStatus('idle')
-    setGeneratorError('')
-    setGeneratorResult(null)
-  }
-
-  const selectedGameDetails = games.find((game) => game.fileName === selectedGame)
-  const selectedGameName = selectedGameDetails?.displayName
-  const selectedSourceUrl = selectedGameDetails?.sourceUrl
-  const analysisDays = getActivePanelDays(analysis)
-  const analysisPatternLabel = analysis?.patternLabel ?? patternOptions.find(
-    (option) => option.value === analysis?.pattern,
-  )?.label ?? 'Sequence Pattern'
+  const selectedGameDetails = games.find(
+    (game) => game.fileName === selectedGame,
+  );
+  const selectedGameName = selectedGameDetails?.displayName;
+  const selectedSourceUrl = selectedGameDetails?.sourceUrl;
+  const analysisDays = getActivePanelDays(analysis);
+  const analysisPatternLabel =
+    analysis?.patternLabel ??
+    patternOptions.find((option) => option.value === analysis?.pattern)
+      ?.label ??
+    "Sequence Pattern";
 
   const openGenerator = async () => {
-    const requestGeneration = apiRequestGenerationRef.current
-    const requestBaseUrl = apiBaseUrl
-    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+    const requestGeneration = apiRequestGenerationRef.current;
+    const requestBaseUrl = apiBaseUrl;
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
 
-    const optionsRequest = ++generatorOptionsRequestRef.current
-    setGeneratorError('')
-    setGeneratorResult(null)
-    setGeneratorStatus('loading-options')
-    setIsGeneratorOpen(true)
+    const optionsRequest = ++generatorOptionsRequestRef.current;
+    setGeneratorError("");
+    setGeneratorResult(null);
+    setGeneratorStatus("loading-options");
+    setIsGeneratorOpen(true);
 
     try {
-      const response = await fetch(`${requestBaseUrl}/api/chart-export/options`)
-      const data = await response.json().catch(() => null)
+      const response = await fetch(
+        `${requestBaseUrl}/api/chart-export/options`,
+      );
+      const data = await response.json().catch(() => null);
       if (
-        optionsRequest !== generatorOptionsRequestRef.current
-        || !isApiRequestCurrent(requestGeneration, requestBaseUrl)
-      ) return
+        optionsRequest !== generatorOptionsRequestRef.current ||
+        !isApiRequestCurrent(requestGeneration, requestBaseUrl)
+      )
+        return;
 
       if (!response.ok) {
-        throw new Error(getProblemMessage(data, `Options request failed with status ${response.status}.`))
+        throw new Error(
+          getProblemMessage(
+            data,
+            `Options request failed with status ${response.status}.`,
+          ),
+        );
       }
 
-      const sources = Array.isArray(data?.sources) ? data.sources : []
-      const selectedSource = sources.find((source) => source.fileName === generatorFileName) ?? sources[0]
+      const sources = Array.isArray(data?.sources) ? data.sources : [];
+      const selectedSource =
+        sources.find((source) => source.fileName === generatorFileName) ??
+        sources[0];
 
-      setGeneratorSources(sources)
-      setGeneratorFileName(selectedSource?.fileName ?? '')
-      setGeneratorUrl(selectedSource?.url ?? '')
-      setGeneratorStatus('idle')
+      setGeneratorSources(sources);
+      setGeneratorFileName(selectedSource?.fileName ?? "");
+      setGeneratorUrl(selectedSource?.url ?? "");
+      setGeneratorStatus("idle");
     } catch (requestError) {
       if (
-        optionsRequest !== generatorOptionsRequestRef.current
-        || !isApiRequestCurrent(requestGeneration, requestBaseUrl)
-      ) return
-
-      setGeneratorStatus('error')
-      setGeneratorError(
-        requestError instanceof Error ? requestError.message : 'Unable to load generator defaults.',
+        optionsRequest !== generatorOptionsRequestRef.current ||
+        !isApiRequestCurrent(requestGeneration, requestBaseUrl)
       )
+        return;
+
+      setGeneratorStatus("error");
+      setGeneratorError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to load generator defaults.",
+      );
     }
-  }
+  };
 
   const changeGeneratorSource = (fileName) => {
-    const source = generatorSources.find((item) => item.fileName === fileName)
-    setGeneratorFileName(fileName)
-    setGeneratorUrl(source?.url ?? '')
-    setGeneratorError('')
-    setGeneratorResult(null)
-  }
+    const source = generatorSources.find((item) => item.fileName === fileName);
+    setGeneratorFileName(fileName);
+    setGeneratorUrl(source?.url ?? "");
+    setGeneratorError("");
+    setGeneratorResult(null);
+  };
 
   const closeGenerator = () => {
-    if (generatorStatus !== 'loading') {
-      generatorOptionsRequestRef.current += 1
-      setIsGeneratorOpen(false)
-      if (generatorStatus === 'loading-options') setGeneratorStatus('idle')
+    if (generatorStatus !== "loading") {
+      generatorOptionsRequestRef.current += 1;
+      setIsGeneratorOpen(false);
+      if (generatorStatus === "loading-options") setGeneratorStatus("idle");
     }
-  }
+  };
 
   const generateExcel = async (event) => {
-    event.preventDefault()
-    const requestGeneration = apiRequestGenerationRef.current
-    const requestBaseUrl = apiBaseUrl
-    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+    event.preventDefault();
+    const requestGeneration = apiRequestGenerationRef.current;
+    const requestBaseUrl = apiBaseUrl;
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
 
-    setGeneratorStatus('loading')
-    setGeneratorError('')
-    setGeneratorResult(null)
+    setGeneratorStatus("loading");
+    setGeneratorError("");
+    setGeneratorResult(null);
 
     try {
-      const response = await fetch(`${requestBaseUrl}/api/chart-export/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: generatorUrl, fileName: generatorFileName }),
-      })
-      const data = await response.json().catch(() => null)
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+      const response = await fetch(
+        `${requestBaseUrl}/api/chart-export/generate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: generatorUrl,
+            fileName: generatorFileName,
+          }),
+        },
+      );
+      const data = await response.json().catch(() => null);
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
 
       if (!response.ok) {
-        throw new Error(getProblemMessage(data, `Generation request failed with status ${response.status}.`))
+        throw new Error(
+          getProblemMessage(
+            data,
+            `Generation request failed with status ${response.status}.`,
+          ),
+        );
       }
 
-      setGeneratorResult(data)
-      setGeneratorStatus('success')
-      setGeneratorSources((currentSources) => currentSources.map((source) => (
-        source.fileName === generatorFileName ? { ...source, url: generatorUrl } : source
-      )))
-      setNumbers('')
-      setAnalysis(null)
-      setStatus('idle')
-      setError('')
+      setGeneratorResult(data);
+      setGeneratorStatus("success");
+      setGeneratorSources((currentSources) =>
+        currentSources.map((source) =>
+          source.fileName === generatorFileName
+            ? { ...source, url: generatorUrl }
+            : source,
+        ),
+      );
+      setNumbers("");
+      setAnalysis(null);
+      setStatus("idle");
+      setError("");
 
       try {
-        const refreshedGames = await fetchGames(requestBaseUrl)
-        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
-        setGames(refreshedGames)
-        setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
+        const refreshedGames = await fetchGames(requestBaseUrl);
+        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+        setGames(refreshedGames);
+        setGamesStatus(refreshedGames.length > 0 ? "success" : "empty");
         setSelectedGame(
           refreshedGames.some((game) => game.fileName === data.fileName)
             ? data.fileName
-            : refreshedGames[0]?.fileName ?? '',
-        )
+            : (refreshedGames[0]?.fileName ?? ""),
+        );
       } catch (refreshError) {
-        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+        if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
         setError(
           refreshError instanceof Error
             ? `Excel was generated, but the game list could not refresh: ${refreshError.message}`
-            : 'Excel was generated, but the game list could not refresh.',
-        )
+            : "Excel was generated, but the game list could not refresh.",
+        );
       }
     } catch (requestError) {
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
-      setGeneratorStatus('error')
-      setGeneratorError(requestError instanceof Error ? requestError.message : 'Unable to generate the Excel file.')
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+      setGeneratorStatus("error");
+      setGeneratorError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to generate the Excel file.",
+      );
     }
-  }
+  };
 
   const chartFileGenerated = async (result) => {
-    const requestGeneration = apiRequestGenerationRef.current
-    const requestBaseUrl = apiBaseUrl
-    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+    const requestGeneration = apiRequestGenerationRef.current;
+    const requestBaseUrl = apiBaseUrl;
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
 
-    setNumbers('')
-    setAnalysis(null)
-    setStatus('idle')
-    setError('')
+    setNumbers("");
+    setAnalysis(null);
+    setStatus("idle");
+    setError("");
 
     try {
-      const refreshedGames = await fetchGames(requestBaseUrl)
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
-      setGames(refreshedGames)
-      setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
+      const refreshedGames = await fetchGames(requestBaseUrl);
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+      setGames(refreshedGames);
+      setGamesStatus(refreshedGames.length > 0 ? "success" : "empty");
       setSelectedGame(
         refreshedGames.some((game) => game.fileName === result.fileName)
           ? result.fileName
-          : refreshedGames[0]?.fileName ?? '',
-      )
+          : (refreshedGames[0]?.fileName ?? ""),
+      );
     } catch (refreshError) {
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
       setError(
         refreshError instanceof Error
           ? `Excel was generated, but the game list could not refresh: ${refreshError.message}`
-          : 'Excel was generated, but the game list could not refresh.',
-      )
+          : "Excel was generated, but the game list could not refresh.",
+      );
     }
-  }
+  };
 
   const chartFileRemoved = async (removedFileName) => {
-    const requestGeneration = apiRequestGenerationRef.current
-    const requestBaseUrl = apiBaseUrl
-    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+    const requestGeneration = apiRequestGenerationRef.current;
+    const requestBaseUrl = apiBaseUrl;
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
 
-    setNumbers('')
-    setAnalysis(null)
-    setStatus('idle')
+    setNumbers("");
+    setAnalysis(null);
+    setStatus("idle");
 
     try {
-      const refreshedGames = await fetchGames(requestBaseUrl)
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
-      setGames(refreshedGames)
-      setGamesStatus(refreshedGames.length > 0 ? 'success' : 'empty')
-      setSelectedGame((currentGame) => (
-        currentGame !== removedFileName && refreshedGames.some((game) => game.fileName === currentGame)
+      const refreshedGames = await fetchGames(requestBaseUrl);
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+      setGames(refreshedGames);
+      setGamesStatus(refreshedGames.length > 0 ? "success" : "empty");
+      setSelectedGame((currentGame) =>
+        currentGame !== removedFileName &&
+        refreshedGames.some((game) => game.fileName === currentGame)
           ? currentGame
-          : refreshedGames[0]?.fileName ?? ''
-      ))
+          : (refreshedGames[0]?.fileName ?? ""),
+      );
     } catch (refreshError) {
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
-      setError(refreshError instanceof Error ? refreshError.message : 'Unable to refresh the game list.')
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+      setError(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Unable to refresh the game list.",
+      );
     }
-  }
+  };
 
   const changeGame = (event) => {
-    setSelectedGame(event.target.value)
-    setNumbers('')
-    setAnalysis(null)
-    setStatus('idle')
-    setError('')
-  }
+    setSelectedGame(event.target.value);
+    setNumbers("");
+    setAnalysis(null);
+    setStatus("idle");
+    setError("");
+  };
 
   const changePatterns = (nextPatterns) => {
     if (
-      nextPatterns.length === selectedPatterns.length
-      && nextPatterns.every((patternValue) => selectedPatterns.includes(patternValue))
+      nextPatterns.length === selectedPatterns.length &&
+      nextPatterns.every((patternValue) =>
+        selectedPatterns.includes(patternValue),
+      )
     ) {
-      return
+      return;
     }
 
     if (numbers.trim()) {
       const shouldClear = window.confirm(
-        'Guess Numbers must be blank before changing Pattern. Clear Guess Numbers and continue?',
-      )
+        "Guess Numbers must be blank before changing Pattern. Clear Guess Numbers and continue?",
+      );
 
       if (!shouldClear) {
-        return
+        return;
       }
     }
 
-    setNumbers('')
-    setAnalysis(null)
-    setStatus('idle')
-    setError('')
-    setSelectedPatterns(nextPatterns)
-  }
+    setNumbers("");
+    setAnalysis(null);
+    setStatus("idle");
+    setError("");
+    setSelectedPatterns(nextPatterns);
+  };
 
   const changeNumberType = (event) => {
-    const nextNumberType = event.target.value
+    const nextNumberType = event.target.value;
     if (nextNumberType === numberType) {
-      return
+      return;
     }
 
     if (numbers.trim()) {
       const shouldClear = window.confirm(
-        'Guess Numbers must be blank before changing Number Type. Clear Guess Numbers and continue?',
-      )
+        "Guess Numbers must be blank before changing Number Type. Clear Guess Numbers and continue?",
+      );
 
       if (!shouldClear) {
-        return
+        return;
       }
     }
 
-    setNumbers('')
-    setAnalysis(null)
-    setStatus('idle')
-    setError('')
-    setNumberType(nextNumberType)
-  }
+    setNumbers("");
+    setAnalysis(null);
+    setStatus("idle");
+    setError("");
+    setNumberType(nextNumberType);
+  };
 
   const changeLatestCount = (event) => {
-    const nextCount = event.target.value
-    setLatestCount(nextCount)
+    const nextCount = event.target.value;
+    setLatestCount(nextCount);
 
     if (!nextCount) {
-      setNumbers('')
-      return
+      setNumbers("");
+      return;
     }
 
     if (analysis) {
-      setNumbers(getLatestGuessNumbers(analysis, nextCount, skipLastNumbers))
+      setNumbers(getLatestGuessNumbers(analysis, nextCount, skipLastNumbers));
     }
-  }
+  };
 
   const changeSkipLastNumbers = (event) => {
-    const nextSkipCount = event.target.value
+    const nextSkipCount = event.target.value;
     if (analysis && latestCount) {
-      setNumbers(getLatestGuessNumbers(analysis, latestCount, nextSkipCount))
+      setNumbers(getLatestGuessNumbers(analysis, latestCount, nextSkipCount));
     }
 
-    setSkipLastNumbers(nextSkipCount)
-    setAnalysis(null)
-    setStatus('idle')
-    setError('')
-  }
+    setSkipLastNumbers(nextSkipCount);
+    setAnalysis(null);
+    setStatus("idle");
+    setError("");
+  };
 
   const changeAigSeriesDays = (event) => {
-    setAigSeriesDays(event.target.value)
-    setAnalysis(null)
-    setPatternResponses([])
-    setIsPatternResponsesOpen(false)
-    setStatus('idle')
-    setError('')
-  }
+    setAigSeriesDays(event.target.value);
+    setAnalysis(null);
+    setPatternResponses([]);
+    setIsPatternResponsesOpen(false);
+    setStatus("idle");
+    setError("");
+  };
 
   const runAnalysis = async (event) => {
-    event.preventDefault()
-    const requestGeneration = apiRequestGenerationRef.current
-    const requestBaseUrl = apiBaseUrl
-    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+    event.preventDefault();
+    const requestGeneration = apiRequestGenerationRef.current;
+    const requestBaseUrl = apiBaseUrl;
+    if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
 
-    setIsNumberAnalysisOpen(false)
-    setIsPatternResponsesOpen(false)
-    setPatternResponses([])
+    setIsNumberAnalysisOpen(false);
+    setIsPatternResponsesOpen(false);
+    setPatternResponses([]);
 
     if (selectedPatterns.length === 0) {
-      setError('Select at least one pattern before searching.')
-      return
+      setError("Select at least one pattern before searching.");
+      return;
     }
 
     if (!selectedGame) {
-      setError('No Excel game file is available. Upload an .xlsx or .xlsm blob to the Azure files container.')
-      return
+      setError(
+        "No Excel game file is available. Upload an .xlsx or .xlsm blob to the Azure files container.",
+      );
+      return;
     }
 
-    setStatus('loading')
-    setError('')
+    setStatus("loading");
+    setError("");
 
     try {
       const requestAnalysis = async (guessNumbers, requestedPattern) => {
         const response = await fetch(`${requestBaseUrl}/api/panel/analyze`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             pattern: requestedPattern,
             fileName: selectedGame,
@@ -1201,118 +1555,195 @@ export default function App() {
             numbers: guessNumbers,
             skipLastNumbers: Number(skipLastNumbers || 0),
           }),
-        })
+        });
 
         if (!response.ok) {
-          const problem = await response.json().catch(() => null)
-          throw new Error(getProblemMessage(problem, `Analysis request failed with status ${response.status}.`))
+          const problem = await response.json().catch(() => null);
+          throw new Error(
+            getProblemMessage(
+              problem,
+              `Analysis request failed with status ${response.status}.`,
+            ),
+          );
         }
 
-        return response.json()
-      }
+        return response.json();
+      };
 
-      const selectedPanelPatternOptions = panelPatternOptions.filter(
-        (option) => selectedPatterns.includes(option.value),
-      )
+      const selectedPanelPatternOptions = panelPatternOptions.filter((option) =>
+        selectedPatterns.includes(option.value),
+      );
       const selectedPredictionPatternOptions = predictionPatternOptions.filter(
         (option) => selectedPatterns.includes(option.value),
-      )
+      );
       const requestSelectedPatterns = async (guessNumbers, seed = null) => {
-        const patternAnalyses = await Promise.all(selectedPanelPatternOptions.map(async (option) => ({
-          analysis: seed?.pattern === option.value
-            ? seed.analysis
-            : await requestAnalysis(guessNumbers, option.value),
-          label: option.label,
-          pattern: option.value,
-        })))
+        const patternAnalyses = await Promise.all(
+          selectedPanelPatternOptions.map(async (option) => ({
+            analysis:
+              seed?.pattern === option.value
+                ? seed.analysis
+                : await requestAnalysis(guessNumbers, option.value),
+            label: option.label,
+            pattern: option.value,
+          })),
+        );
 
-        return combinePatternAnalyses(patternAnalyses)
-      }
+        return combinePatternAnalyses(patternAnalyses);
+      };
 
-      let data
+      let data;
 
       if (selectedPanelPatternOptions.length === 0) {
-        const seedAnalysis = await requestAnalysis('', 'Sequence')
-        data = createPredictionOnlyAnalysis(seedAnalysis, selectedPredictionPatternOptions)
+        const seedAnalysis = await requestAnalysis("", "Sequence");
+        data = createPredictionOnlyAnalysis(
+          seedAnalysis,
+          selectedPredictionPatternOptions,
+        );
       } else if (!numbers.trim() && latestCount) {
-        const seedPattern = selectedPanelPatternOptions[0].value
-        const seedAnalysis = await requestAnalysis('', seedPattern)
-        const latestNumbers = getLatestGuessNumbers(seedAnalysis, latestCount, skipLastNumbers)
-        const seedMatchesSelection = latestNumbers === seedAnalysis.guessNumbers
+        const seedPattern = selectedPanelPatternOptions[0].value;
+        const seedAnalysis = await requestAnalysis("", seedPattern);
+        const latestNumbers = getLatestGuessNumbers(
+          seedAnalysis,
+          latestCount,
+          skipLastNumbers,
+        );
+        const seedMatchesSelection =
+          latestNumbers === seedAnalysis.guessNumbers;
 
         if (selectedPanelPatternOptions.length > 1) {
           data = await requestSelectedPatterns(
             latestNumbers,
-            seedMatchesSelection ? { analysis: seedAnalysis, pattern: seedPattern } : null,
-          )
+            seedMatchesSelection
+              ? { analysis: seedAnalysis, pattern: seedPattern }
+              : null,
+          );
         } else {
           data = seedMatchesSelection
             ? seedAnalysis
-            : await requestAnalysis(latestNumbers, seedPattern)
+            : await requestAnalysis(latestNumbers, seedPattern);
         }
       } else {
-        data = selectedPanelPatternOptions.length > 1
-          ? await requestSelectedPatterns(numbers)
-          : await requestAnalysis(numbers, selectedPanelPatternOptions[0].value)
+        data =
+          selectedPanelPatternOptions.length > 1
+            ? await requestSelectedPatterns(numbers)
+            : await requestAnalysis(
+                numbers,
+                selectedPanelPatternOptions[0].value,
+              );
       }
 
       if (!data) {
-        throw new Error('No pattern analysis was returned.')
+        throw new Error("No pattern analysis was returned.");
       }
 
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
 
       const responses = await Promise.all(
-        selectedPredictionPatternOptions.map(
-          (option) => requestPatternPrediction(requestBaseUrl, option, data, aigSeriesDays),
+        selectedPredictionPatternOptions.map((option) =>
+          requestPatternPrediction(requestBaseUrl, option, data, aigSeriesDays),
         ),
-      )
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
+      );
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
 
       const analysisWithPredictions = addPredictionResultsToAnalysis(
         data,
         responses,
         selectedPanelPatternOptions,
-      )
+      );
 
-      setAnalysis(analysisWithPredictions)
-      setPatternResponses(responses)
-      setNumbers(latestCount ? data.guessNumbers : '')
-      setStatus('success')
+      setAnalysis(analysisWithPredictions);
+      setPatternResponses(responses);
+      setNumbers(latestCount ? data.guessNumbers : "");
+      setStatus("success");
     } catch (requestError) {
-      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return
-      setAnalysis(null)
-      setPatternResponses([])
-      setStatus('error')
-      setError(requestError instanceof Error ? requestError.message : 'Unable to analyze panel data.')
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+      setAnalysis(null);
+      setPatternResponses([]);
+      setStatus("error");
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to analyze panel data.",
+      );
     }
-  }
+  };
 
-  if (activePage === 'excel-files') {
+  const runLastWeekAnalysis = async () => {
+    const requestGeneration = apiRequestGenerationRef.current;
+    const requestBaseUrl = apiBaseUrl;
+    const requestedPatterns = panelPatternOptions
+      .filter((option) => selectedPatterns.includes(option.value))
+      .map((option) => option.value);
+
+    setIsLastWeekAnalysisOpen(true);
+    setLastWeekAnalysisRows([]);
+    setLastWeekAnalysisStatus("loading");
+    setLastWeekAnalysisError("");
+
+    if (requestedPatterns.length === 0) {
+      setLastWeekAnalysisStatus("error");
+      setLastWeekAnalysisError("Select at least one non-AIG pattern to analyze the last week.");
+      return;
+    }
+
+    try {
+      const response = await fetch(`${requestBaseUrl}/api/panel/analyze-last-week`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: selectedGame,
+          latestCount: Number(latestCount || 3),
+          numberType,
+          patterns: requestedPatterns,
+          skipLastNumbers: Number(skipLastNumbers || 0),
+        }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          getProblemMessage(data, `Last week analysis failed with status ${response.status}.`),
+        );
+      }
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+
+      setLastWeekAnalysisRows(data);
+      setLastWeekAnalysisStatus("success");
+    } catch (requestError) {
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+      setLastWeekAnalysisStatus("error");
+      setLastWeekAnalysisError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to analyze the last week.",
+      );
+    }
+  };
+
+  if (activePage === "excel-files") {
     return (
       <ChartFilesPage
         apiBaseUrl={apiBaseUrl}
         apiEnvironmentKey={apiEnvironmentKey}
         key={apiEnvironmentKey}
         onApiEnvironmentChange={changeApiEnvironment}
-        onBack={() => navigateToPage('explorer')}
+        onBack={() => navigateToPage("explorer")}
         onGenerated={chartFileGenerated}
         onRemoved={chartFileRemoved}
       />
-    )
+    );
   }
 
   return (
     <main className="page-shell">
       <PageHeader
-        actions={(
+        actions={
           <>
-            <ApiEnvironmentSelector
-              disabled={status === 'loading' || generatorStatus === 'loading'}
-              onChange={changeApiEnvironment}
-              value={apiEnvironmentKey}
-            />
-            <button className="generate-link" onClick={() => navigateToPage('excel-files')} type="button">
+            <button
+              className="generate-link"
+              onClick={() => navigateToPage("excel-files")}
+              type="button"
+            >
               Excel Files
             </button>
             {analysis && (
@@ -1322,7 +1753,7 @@ export default function App() {
               </div>
             )}
           </>
-        )}
+        }
       />
 
       <SearchControls
@@ -1355,15 +1786,18 @@ export default function App() {
         </div>
       )}
 
-      {!analysis && status !== 'loading' && (
+      {!analysis && status !== "loading" && (
         <section className="empty-state">
           <div aria-hidden="true">⌕</div>
           <h2>Ready to search the panel history</h2>
-          <p>Leave Guess Numbers blank to use the latest three digits, or enter your own sequence.</p>
+          <p>
+            Leave Guess Numbers blank to use the latest three digits, or enter
+            your own sequence.
+          </p>
         </section>
       )}
 
-      {status === 'loading' && (
+      {status === "loading" && (
         <section className="empty-state loading-state" aria-live="polite">
           <div className="spinner" aria-hidden="true" />
           <h2>Analyzing panel history…</h2>
@@ -1382,12 +1816,17 @@ export default function App() {
             />
             <NextNumberCountSection
               analysis={analysis}
+              isLastWeekLoading={lastWeekAnalysisStatus === "loading"}
               onOpenAnalysis={() => setIsNumberAnalysisOpen(true)}
+              onOpenLastWeekAnalysis={runLastWeekAnalysis}
               onOpenPatternResponses={() => setIsPatternResponsesOpen(true)}
               patternLabel={analysisPatternLabel}
               patternResponseCount={patternResponses.length}
             />
-            <MatchLinesSection analysis={analysis} patternLabel={analysisPatternLabel} />
+            <MatchLinesSection
+              analysis={analysis}
+              patternLabel={analysisPatternLabel}
+            />
           </div>
           {analysis.threeTouch && (
             <ThreeTouchPatternSection
@@ -1419,7 +1858,19 @@ export default function App() {
       )}
 
       {isNumberAnalysisOpen && analysis && (
-        <NumberAnalysisModal analysis={analysis} onClose={() => setIsNumberAnalysisOpen(false)} />
+        <NumberAnalysisModal
+          analysis={analysis}
+          onClose={() => setIsNumberAnalysisOpen(false)}
+        />
+      )}
+
+      {isLastWeekAnalysisOpen && (
+        <LastWeekAnalysisModal
+          error={lastWeekAnalysisError}
+          onClose={() => setIsLastWeekAnalysisOpen(false)}
+          rows={lastWeekAnalysisRows}
+          status={lastWeekAnalysisStatus}
+        />
       )}
 
       {isPatternResponsesOpen && patternResponses.length > 0 && (
@@ -1429,5 +1880,5 @@ export default function App() {
         />
       )}
     </main>
-  )
+  );
 }

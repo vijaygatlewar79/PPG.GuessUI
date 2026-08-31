@@ -22,7 +22,9 @@ const columns = [
 
 export default function NextNumberCountSection({
   analysis,
+  isLastWeekLoading,
   onOpenAnalysis,
+  onOpenLastWeekAnalysis,
   onOpenPatternResponses,
   patternLabel,
   patternResponseCount,
@@ -31,6 +33,17 @@ export default function NextNumberCountSection({
     <ResultCard
       action={(
         <div className="result-action-group">
+          {analysis.nextNumberCounts.length > 0 && (
+            <button
+              className="number-analysis-button"
+              disabled={isLastWeekLoading}
+              onClick={onOpenLastWeekAnalysis}
+              title="Show guess analysis for the last seven days"
+              type="button"
+            >
+              Analysis Last week
+            </button>
+          )}
           {analysis.nextNumberCounts.length > 0 && (
             <button className="number-analysis-button" onClick={onOpenAnalysis} title="Analyze top guess numbers" type="button">
               <svg aria-hidden="true" fill="none" height="15" viewBox="0 0 24 24" width="15">
