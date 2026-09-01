@@ -810,9 +810,22 @@ function NumberAnalysisModal({ analysis, onClose }) {
   );
 }
 
+function getLastWeekRowResult(row) {
+  const passNumber = String(row.passNumber ?? "").trim();
+  if (!passNumber) return null;
+
+  return row.numbers.some(
+    (number) => String(number ?? "").trim() === passNumber,
+  )
+    ? "passed"
+    : "failed";
+}
+
 function LastWeekAnalysisModal({
+  dayCount,
   error,
   onClose,
+  onDayCountChange,
   onTopCountChange,
   rows,
   status,
@@ -826,6 +839,15 @@ function LastWeekAnalysisModal({
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [onClose]);
+
+  const evaluatedResults = rows
+    .map(getLastWeekRowResult)
+    .filter(Boolean);
+  const passedCount = evaluatedResults.filter((result) => result === "passed").length;
+  const failedCount = evaluatedResults.length - passedCount;
+  const passRate = evaluatedResults.length > 0
+    ? Math.round((passedCount / evaluatedResults.length) * 1000) / 10
+    : null;
 
   return (
     <div
@@ -845,6 +867,32 @@ function LastWeekAnalysisModal({
             <h2 id="last-week-analysis-title">Analysis Last week</h2>
           </div>
           <div className="last-week-header-actions">
+            {passRate != null && (
+              <div
+                aria-label={`${passRate}% pass rate: ${passedCount} passed and ${failedCount} failed`}
+                className="last-week-pass-rate"
+                role="status"
+                title={`${passedCount} Passed · ${failedCount} Failed`}
+              >
+                <span>Pass rate</span>
+                <strong>{passRate}%</strong>
+              </div>
+            )}
+            <label className="last-week-day-count" htmlFor="last-week-day-count">
+              Show last day result
+              <select
+                disabled={status === "loading"}
+                id="last-week-day-count"
+                onChange={(event) => onDayCountChange(Number(event.target.value))}
+                value={dayCount}
+              >
+                {Array.from({ length: 30 }, (_, index) => index + 1).map((count) => (
+                  <option key={count} value={count}>
+                    {count} {count === 1 ? "Day" : "Days"}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label htmlFor="last-week-top-count">
               Top numbers
               <select
@@ -873,7 +921,7 @@ function LastWeekAnalysisModal({
           {status === "loading" && (
             <div className="last-week-loading" role="status">
               <span className="spinner" aria-hidden="true" />
-              Calculating the last seven days…
+              Calculating the last {dayCount} {dayCount === 1 ? "day" : "days"}…
             </div>
           )}
           {status === "error" && (
@@ -894,11 +942,7 @@ function LastWeekAnalysisModal({
                 {rows.map((row, index) => {
                   const passNumber = String(row.passNumber ?? "").trim();
                   const hasPassNumber = passNumber !== "";
-                  const isPassed =
-                    hasPassNumber &&
-                    row.numbers.some(
-                      (number) => String(number ?? "").trim() === passNumber,
-                    );
+                  const isPassed = getLastWeekRowResult(row) === "passed";
 
                   return (
                     <tr key={`${row.dayGuess}-${index}`}>
@@ -1167,6 +1211,7 @@ export default function App() {
   const [lastWeekAnalysisStatus, setLastWeekAnalysisStatus] = useState("idle");
   const [lastWeekAnalysisError, setLastWeekAnalysisError] = useState("");
   const [lastWeekTopCount, setLastWeekTopCount] = useState(3);
+  const [lastWeekDayCount, setLastWeekDayCount] = useState(7);
   const [generatorUrl, setGeneratorUrl] = useState("");
   const [generatorFileName, setGeneratorFileName] = useState("");
   const [generatorSources, setGeneratorSources] = useState([]);
@@ -1708,7 +1753,10 @@ export default function App() {
     }
   };
 
-  const runLastWeekAnalysis = async (topCount = lastWeekTopCount) => {
+  const runLastWeekAnalysis = async (
+    topCount = lastWeekTopCount,
+    dayCount = lastWeekDayCount,
+  ) => {
     const requestGeneration = apiRequestGenerationRef.current;
     const requestBaseUrl = apiBaseUrl;
     const requestedPatterns = panelPatternOptions
@@ -1737,6 +1785,7 @@ export default function App() {
           patterns: requestedPatterns,
           skipLastNumbers: Number(skipLastNumbers || 0),
           topCount,
+          dayCount,
         }),
       });
       const data = await response.json().catch(() => null);
@@ -1907,11 +1956,16 @@ export default function App() {
 
       {isLastWeekAnalysisOpen && (
         <LastWeekAnalysisModal
+          dayCount={lastWeekDayCount}
           error={lastWeekAnalysisError}
           onClose={() => setIsLastWeekAnalysisOpen(false)}
+          onDayCountChange={(dayCount) => {
+            setLastWeekDayCount(dayCount);
+            runLastWeekAnalysis(lastWeekTopCount, dayCount);
+          }}
           onTopCountChange={(topCount) => {
             setLastWeekTopCount(topCount);
-            runLastWeekAnalysis(topCount);
+            runLastWeekAnalysis(topCount, lastWeekDayCount);
           }}
           rows={lastWeekAnalysisRows}
           status={lastWeekAnalysisStatus}

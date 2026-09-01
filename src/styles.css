@@ -1371,6 +1371,38 @@ tbody tr:hover td {
   text-transform: none;
 }
 
+.last-week-day-count select {
+  min-width: 130px;
+}
+
+.last-week-pass-rate {
+  display: grid;
+  min-width: 78px;
+  min-height: 34px;
+  padding: 4px 9px;
+  color: #fff;
+  background: rgba(14, 82, 58, 0.5);
+  border: 1px solid rgba(192, 235, 215, 0.55);
+  border-radius: 7px;
+  place-content: center;
+  text-align: center;
+}
+
+.last-week-pass-rate span {
+  color: #ccebdd;
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.last-week-pass-rate strong {
+  margin-top: 2px;
+  font-size: 0.88rem;
+  line-height: 1;
+}
+
 .last-week-header-actions select:disabled {
   cursor: wait;
   opacity: 0.7;
