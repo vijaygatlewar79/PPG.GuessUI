@@ -33,7 +33,21 @@ async function fetchGames(apiBaseUrl, signal) {
     throw new Error(`Game list request failed with status ${response.status}.`);
   }
 
-  return response.json();
+  const games = await response.json();
+  return [...games].sort((first, second) => {
+    const firstOrder = Number.isFinite(first.orderBy)
+      ? first.orderBy
+      : Number.MAX_SAFE_INTEGER;
+    const secondOrder = Number.isFinite(second.orderBy)
+      ? second.orderBy
+      : Number.MAX_SAFE_INTEGER;
+
+    return (
+      firstOrder - secondOrder ||
+      first.displayName.localeCompare(second.displayName) ||
+      first.fileName.localeCompare(second.fileName)
+    );
+  });
 }
 
 function getProblemMessage(problem, fallback) {
@@ -796,7 +810,14 @@ function NumberAnalysisModal({ analysis, onClose }) {
   );
 }
 
-function LastWeekAnalysisModal({ error, onClose, rows, status }) {
+function LastWeekAnalysisModal({
+  error,
+  onClose,
+  onTopCountChange,
+  rows,
+  status,
+  topCount,
+}) {
   useEffect(() => {
     const closeOnEscape = (event) => {
       if (event.key === "Escape") onClose();
@@ -823,14 +844,29 @@ function LastWeekAnalysisModal({ error, onClose, rows, status }) {
             <p className="modal-eyebrow">Next number count</p>
             <h2 id="last-week-analysis-title">Analysis Last week</h2>
           </div>
-          <button
-            aria-label="Close last week analysis"
-            className="modal-close"
-            onClick={onClose}
-            type="button"
-          >
-            &times;
-          </button>
+          <div className="last-week-header-actions">
+            <label htmlFor="last-week-top-count">
+              Top numbers
+              <select
+                disabled={status === "loading"}
+                id="last-week-top-count"
+                onChange={(event) => onTopCountChange(Number(event.target.value))}
+                value={topCount}
+              >
+                {[1, 2, 3, 4, 5].map((count) => (
+                  <option key={count} value={count}>Top {count}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              aria-label="Close last week analysis"
+              className="modal-close"
+              onClick={onClose}
+              type="button"
+            >
+              &times;
+            </button>
+          </div>
         </header>
 
         <div className="last-week-analysis-body">
@@ -849,7 +885,7 @@ function LastWeekAnalysisModal({ error, onClose, rows, status }) {
                 <tr>
                   <th>Sr No</th>
                   <th>Day guess</th>
-                  <th>Numbers</th>
+                  <th>Guess Number</th>
                   <th>Pass Number</th>
                   <th>Result</th>
                 </tr>
@@ -857,8 +893,9 @@ function LastWeekAnalysisModal({ error, onClose, rows, status }) {
               <tbody>
                 {rows.map((row, index) => {
                   const passNumber = String(row.passNumber ?? "").trim();
+                  const hasPassNumber = passNumber !== "";
                   const isPassed =
-                    passNumber !== "" &&
+                    hasPassNumber &&
                     row.numbers.some(
                       (number) => String(number ?? "").trim() === passNumber,
                     );
@@ -869,8 +906,10 @@ function LastWeekAnalysisModal({ error, onClose, rows, status }) {
                       <td>{row.dayGuess}</td>
                       <td><strong>{row.numbers.join(", ") || "—"}</strong></td>
                       <td className="pass-number"><strong>{passNumber || "—"}</strong></td>
-                      <td className={`analysis-result ${isPassed ? "passed" : "failed"}`}>
-                        <strong>{isPassed ? "Passed" : "Failed"}</strong>
+                      <td
+                        className={`analysis-result${hasPassNumber ? ` ${isPassed ? "passed" : "failed"}` : ""}`}
+                      >
+                        {hasPassNumber && <strong>{isPassed ? "Passed" : "Failed"}</strong>}
                       </td>
                     </tr>
                   );
@@ -1127,6 +1166,7 @@ export default function App() {
   const [lastWeekAnalysisRows, setLastWeekAnalysisRows] = useState([]);
   const [lastWeekAnalysisStatus, setLastWeekAnalysisStatus] = useState("idle");
   const [lastWeekAnalysisError, setLastWeekAnalysisError] = useState("");
+  const [lastWeekTopCount, setLastWeekTopCount] = useState(3);
   const [generatorUrl, setGeneratorUrl] = useState("");
   const [generatorFileName, setGeneratorFileName] = useState("");
   const [generatorSources, setGeneratorSources] = useState([]);
@@ -1668,7 +1708,7 @@ export default function App() {
     }
   };
 
-  const runLastWeekAnalysis = async () => {
+  const runLastWeekAnalysis = async (topCount = lastWeekTopCount) => {
     const requestGeneration = apiRequestGenerationRef.current;
     const requestBaseUrl = apiBaseUrl;
     const requestedPatterns = panelPatternOptions
@@ -1696,6 +1736,7 @@ export default function App() {
           numberType,
           patterns: requestedPatterns,
           skipLastNumbers: Number(skipLastNumbers || 0),
+          topCount,
         }),
       });
       const data = await response.json().catch(() => null);
@@ -1818,7 +1859,7 @@ export default function App() {
               analysis={analysis}
               isLastWeekLoading={lastWeekAnalysisStatus === "loading"}
               onOpenAnalysis={() => setIsNumberAnalysisOpen(true)}
-              onOpenLastWeekAnalysis={runLastWeekAnalysis}
+              onOpenLastWeekAnalysis={() => runLastWeekAnalysis()}
               onOpenPatternResponses={() => setIsPatternResponsesOpen(true)}
               patternLabel={analysisPatternLabel}
               patternResponseCount={patternResponses.length}
@@ -1868,8 +1909,13 @@ export default function App() {
         <LastWeekAnalysisModal
           error={lastWeekAnalysisError}
           onClose={() => setIsLastWeekAnalysisOpen(false)}
+          onTopCountChange={(topCount) => {
+            setLastWeekTopCount(topCount);
+            runLastWeekAnalysis(topCount);
+          }}
           rows={lastWeekAnalysisRows}
           status={lastWeekAnalysisStatus}
+          topCount={lastWeekTopCount}
         />
       )}
 
