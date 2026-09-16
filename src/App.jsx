@@ -714,7 +714,7 @@ function getRankedGuessNumbers(analysis) {
   );
 }
 
-function NumberAnalysisModal({ analysis, onClose }) {
+function NumberAnalysisModal({ analysis, gameName, onClose }) {
   const [topCount, setTopCount] = useState("all");
   const allRankedNumbers = getRankedGuessNumbers(analysis);
   const rankedNumbers =
@@ -757,6 +757,15 @@ function NumberAnalysisModal({ analysis, onClose }) {
             &times;
           </button>
         </header>
+
+        {gameName && (
+          <div className="last-week-game-name">
+            <span>Game</span>
+            <strong>{gameName}</strong>
+            <span className="last-week-number-type-label">Number type</span>
+            <strong>{analysis.numberType}</strong>
+          </div>
+        )}
 
         <div className="number-analysis-controls">
           <div>
@@ -824,6 +833,8 @@ function getLastWeekRowResult(row) {
 function LastWeekAnalysisModal({
   dayCount,
   error,
+  gameName,
+  numberType,
   onClose,
   onDayCountChange,
   onTopCountChange,
@@ -901,7 +912,7 @@ function LastWeekAnalysisModal({
                 onChange={(event) => onTopCountChange(Number(event.target.value))}
                 value={topCount}
               >
-                {[1, 2, 3, 4, 5].map((count) => (
+                {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => (
                   <option key={count} value={count}>Top {count}</option>
                 ))}
               </select>
@@ -916,6 +927,15 @@ function LastWeekAnalysisModal({
             </button>
           </div>
         </header>
+
+        {gameName && (
+          <div className="last-week-game-name">
+            <span>Game</span>
+            <strong>{gameName}</strong>
+            <span className="last-week-number-type-label">Number type</span>
+            <strong>{numberType}</strong>
+          </div>
+        )}
 
         <div className="last-week-analysis-body">
           {status === "loading" && (
@@ -962,6 +982,146 @@ function LastWeekAnalysisModal({
             </table>
           )}
         </div>
+      </section>
+    </div>
+  );
+}
+
+function PatternWiseAnalysisModal({ dayCount, error, gameName, numberType, onClose, onDayCountChange, onTopCountChange, rows, sourceUrl, status, topCount }) {
+  const [chartType, setChartType] = useState("bar");
+  const [winningRow, setWinningRow] = useState(null);
+  const [stakeAmount, setStakeAmount] = useState(100);
+  useEffect(() => {
+    const closeOnEscape = (event) => event.key === "Escape" && onClose();
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  const patternLabel = (pattern) => pattern === "Weekly" ? "Weekly Row Pattern" : `${pattern} Pattern`;
+  const getPassedCount = (row, limit) => row.results.filter((result) => result.matchRank && result.matchRank <= limit).length;
+  const getRate = (row, limit) => row.evaluatedCount ? (getPassedCount(row, limit) / row.evaluatedCount) * 100 : 0;
+  const rankedRows = [...rows].sort((a, b) => getRate(b, topCount) - getRate(a, topCount) || patternLabel(a.pattern).localeCompare(patternLabel(b.pattern)));
+  const chartWidth = 820;
+  const chartHeight = 250;
+  const padding = { top: 18, right: 20, bottom: 38, left: 42 };
+  const pointFor = (row, limit) => ({ x: padding.left + ((limit - 1) / 9) * (chartWidth - padding.left - padding.right), y: padding.top + (1 - getRate(row, limit) / 100) * (chartHeight - padding.top - padding.bottom) });
+  const lineColors = ["#246493", "#20704f", "#8a5a20", "#70469a", "#ad4d3c", "#2b7983", "#596c3f", "#6c587c"];
+  const winningPassedCount = winningRow ? getPassedCount(winningRow, topCount) : 0;
+  const winningLossCount = winningRow ? winningRow.evaluatedCount - winningPassedCount : 0;
+  const investmentPerDay = Number(stakeAmount || 0) * topCount;
+  const totalInvestment = winningRow ? winningRow.evaluatedCount * investmentPerDay : 0;
+  const winPayout = Number(stakeAmount || 0) * 9.5;
+  const totalWinAmount = winningPassedCount * winPayout;
+  const totalLossAmount = winningLossCount * investmentPerDay;
+  const netAmount = totalWinAmount - totalInvestment;
+  const renderPatternChart = (row, rate) => {
+    const width = 360;
+    const height = 180;
+    const chartPadding = { top: 24, right: 12, bottom: 34, left: 28 };
+    const plotWidth = width - chartPadding.left - chartPadding.right;
+    const plotHeight = height - chartPadding.top - chartPadding.bottom;
+    // API results are already ordered with the latest evaluated day first.
+    const chartResults = row.results;
+    const step = plotWidth / Math.max(chartResults.length, 1);
+    const points = chartResults.map((result, index) => ({
+      x: chartPadding.left + step * index + step / 2,
+      y: chartPadding.top + ((result.matchRank && result.matchRank <= topCount) ? 0 : plotHeight),
+      passed: result.matchRank && result.matchRank <= topCount,
+      label: result.dayGuess.slice(0, 3),
+    }));
+    return <aside className="pattern-result-chart">
+      <div className="pattern-result-chart-heading"><span>Top {topCount} daily result</span><strong>{rate.toFixed(1)}%</strong></div>
+      <svg aria-label={`${patternLabel(row.pattern)} pass chart for Top ${topCount}`} role="img" viewBox={`0 0 ${width} ${height}`}>
+        <line className="pattern-chart-gridline" x1={chartPadding.left} x2={width - chartPadding.right} y1={chartPadding.top} y2={chartPadding.top} />
+        <line className="pattern-chart-gridline" x1={chartPadding.left} x2={width - chartPadding.right} y1={chartPadding.top + plotHeight} y2={chartPadding.top + plotHeight} />
+        <text className="pattern-chart-axis-label" x="3" y={chartPadding.top + 4}>Pass</text><text className="pattern-chart-axis-label" x="5" y={chartPadding.top + plotHeight}>Miss</text>
+        {chartType === "line" && points.length > 1 && <path d={`M ${points.map((point) => `${point.x} ${point.y}`).join(" L ")}`} fill="none" stroke="#246493" strokeWidth="3" />}
+        {points.map((point, index) => <g key={`${point.label}-${index}`}>{chartType === "bar" ? <rect fill={point.passed ? "#267157" : "#c55a4a"} height={point.passed ? plotHeight : 5} rx="3" width={Math.max(8, step - 8)} x={point.x - Math.max(8, step - 8) / 2} y={point.passed ? chartPadding.top : chartPadding.top + plotHeight - 5} /> : <circle cx={point.x} cy={point.y} fill={point.passed ? "#267157" : "#c55a4a"} r="5" stroke="#fff" strokeWidth="2" />}<text className="pattern-chart-axis-label" textAnchor="middle" x={point.x} y={height - 12}>{point.label}</text></g>)}
+      </svg>
+      <small><b>{getPassedCount(row, topCount)}</b> passed of {row.evaluatedCount} days · Green = pass · Red = miss</small>
+    </aside>;
+  };
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()} role="presentation">
+      <section aria-labelledby="pattern-wise-analysis-title" aria-modal="true" className="number-analysis-modal pattern-wise-analysis-modal" role="dialog">
+        <header className="number-analysis-header">
+          <div>
+            <p className="modal-eyebrow">Pattern performance</p>
+            <h2 id="pattern-wise-analysis-title">Analysis Pattern wise</h2>
+          </div>
+          <div className="last-week-header-actions">
+            <label className="last-week-day-count" htmlFor="pattern-wise-day-count">
+              Analyze days
+              <select disabled={status === "loading"} id="pattern-wise-day-count" onChange={(event) => onDayCountChange(Number(event.target.value))} value={dayCount}>
+                {Array.from({ length: 30 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>Last {count} Days</option>)}
+              </select>
+            </label>
+            <label className="last-week-day-count" htmlFor="pattern-wise-top-count">
+              Top guesses
+              <select disabled={status === "loading"} id="pattern-wise-top-count" onChange={(event) => onTopCountChange(Number(event.target.value))} value={topCount}>
+                {Array.from({ length: 10 }, (_, index) => index + 1).map((count) => <option key={count} value={count}>Top {count}</option>)}
+              </select>
+            </label>
+            <label className="last-week-day-count" htmlFor="pattern-wise-chart-type">
+              Graph type
+              <select id="pattern-wise-chart-type" onChange={(event) => setChartType(event.target.value)} value={chartType}>
+                <option value="bar">Bar chart</option>
+                <option value="line">Line chart</option>
+              </select>
+            </label>
+            <button aria-label="Close pattern analysis" className="modal-close" onClick={onClose} type="button">&times;</button>
+          </div>
+        </header>
+        {gameName && <div className="last-week-game-name"><span>Game</span><strong>{gameName}</strong><span className="last-week-number-type-label">Number type</span><strong>{numberType}</strong>{sourceUrl && <a className="pattern-wise-open-url" href={sourceUrl} rel="noopener noreferrer" target="_blank">Open URL</a>}</div>}
+        <div className="pattern-wise-intro">The chart compares pass percentages from Top 1 through Top 10 guesses. Select a Top value to update the detailed results below.</div>
+        <div className="last-week-analysis-body">
+          {status === "loading" && <div className="last-week-loading" role="status"><span className="spinner" aria-hidden="true" />Comparing pattern results…</div>}
+          {status === "error" && <div className="analysis-empty-state" role="alert">{error}</div>}
+          {status === "success" && <section aria-label="Pass percentage by top guesses" className="pattern-rate-chart">
+            <div className="pattern-rate-chart-heading"><div><span>Pass percentage trend</span><strong>Top 1 to Top 10 comparison</strong></div><small>Selected: Top {topCount}</small></div>
+            <div className="pattern-rate-chart-scroll"><svg aria-label="Line chart showing each pattern's pass percentage for Top 1 through Top 10 guesses" className="pattern-rate-chart-svg" role="img" viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
+              {[0, 25, 50, 75, 100].map((value) => { const y = padding.top + (1 - value / 100) * (chartHeight - padding.top - padding.bottom); return <g key={value}><line className="pattern-chart-gridline" x1={padding.left} x2={chartWidth - padding.right} y1={y} y2={y} /><text className="pattern-chart-axis-label" textAnchor="end" x={padding.left - 8} y={y + 4}>{value}%</text></g>; })}
+              {Array.from({ length: 10 }, (_, index) => index + 1).map((limit) => { const x = pointFor(rankedRows[0] || { evaluatedCount: 0, results: [] }, limit).x; return <g key={limit}><text className="pattern-chart-axis-label" textAnchor="middle" x={x} y={chartHeight - 14}>Top {limit}</text>{limit === topCount && <line className="pattern-chart-selected-line" x1={x} x2={x} y1={padding.top} y2={chartHeight - padding.bottom} />}</g>; })}
+              {rankedRows.map((row, index) => { const color = lineColors[index % lineColors.length]; const points = Array.from({ length: 10 }, (_, pointIndex) => pointFor(row, pointIndex + 1)); return <g key={row.pattern}><path d={`M ${points.map((point) => `${point.x} ${point.y}`).join(" L ")}`} fill="none" stroke={color} strokeWidth="3" />{points.map((point, pointIndex) => <circle className={pointIndex + 1 === topCount ? "pattern-chart-point selected" : "pattern-chart-point"} cx={point.x} cy={point.y} fill={color} key={pointIndex} r={pointIndex + 1 === topCount ? 5 : 3} />)}</g>; })}
+            </svg></div>
+            <div className="pattern-rate-chart-legend">{rankedRows.map((row, index) => <span key={row.pattern}><i style={{ backgroundColor: lineColors[index % lineColors.length] }} />{patternLabel(row.pattern)}: {getRate(row, topCount).toFixed(1)}%</span>)}</div>
+          </section>}
+          {status === "success" && rankedRows.map((row, index) => {
+            const passedCount = getPassedCount(row, topCount);
+            const rate = getRate(row, topCount);
+            const selectedResults = row.results.map((result) => ({
+              ...result,
+              numbers: result.numbers.slice(0, topCount),
+              matchRank: result.matchRank && result.matchRank <= topCount ? result.matchRank : null,
+            }));
+            return <article className={`pattern-performance-card${index === 0 ? " best" : ""}`} key={row.pattern}>
+              <header><span className="guess-rank">#{index + 1}</span><strong>{patternLabel(row.pattern)}</strong>{index === 0 && <span className="best-pattern-badge">Best pattern</span>}<button className="winning-amount-button" onClick={() => setWinningRow(row)} type="button">Winning amount</button><span className="pattern-pass-rate">{rate.toFixed(1)}% pass rate</span></header>
+              <p><strong>{passedCount}</strong> pass number matches from {row.evaluatedCount} evaluated days.</p>
+              <div className={`today-pattern-guess${index === 0 ? " best" : ""}`}>
+                <span>Next day after last pass · {row.todayGuessDay || "Next day"}</span>
+                <strong>{row.todayNumbers?.slice(0, topCount).join(", ") || "No guess available"}</strong>
+              </div>
+              <div className="pattern-performance-details">
+                <div className="pattern-day-results">
+                {selectedResults.map((result, resultIndex) => <div className={result.matchRank && result.matchRank <= topCount ? "pattern-day-match" : "pattern-day-miss"} key={`${result.dayGuess}-${resultIndex}`}>
+                  <strong>{result.dayGuess}</strong><span>Guess: {result.numbers.join(", ") || "—"}</span><span>Pass: {result.passNumber}</span><em>{result.matchRank ? `Passed · guess #${result.matchRank}` : "No match"}</em>
+                </div>)}
+                </div>
+                {renderPatternChart(row, rate)}
+              </div>
+            </article>;
+          })}
+        </div>
+        {winningRow && <div className="winning-amount-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setWinningRow(null)} role="presentation">
+          <section aria-labelledby="winning-amount-title" aria-modal="true" className="winning-amount-modal" role="dialog">
+            <header><div><span>Profit calculator</span><h3 id="winning-amount-title">{patternLabel(winningRow.pattern)} · Top {topCount}</h3></div><button aria-label="Close winning amount calculator" onClick={() => setWinningRow(null)} type="button">&times;</button></header>
+            <p>Based on <b>{winningRow.evaluatedCount}</b> evaluated days: <b>{winningPassedCount}</b> passed and <b>{winningLossCount}</b> failed. Each day uses {topCount} guesses.</p>
+            <div className="winning-amount-inputs"><label>Amount per guessed number (₹)<input min="0" onChange={(event) => setStakeAmount(Number(event.target.value))} type="number" value={stakeAmount} /></label><label>Payout when one number passes (₹)<input readOnly type="number" value={winPayout} /></label></div>
+            <div className="winning-amount-summary"><div><span>Total investment</span><strong>₹{totalInvestment.toLocaleString("en-IN")}</strong><small>{winningRow.evaluatedCount} days × ₹{investmentPerDay.toLocaleString("en-IN")}</small></div><div><span>Winning amount</span><strong>₹{totalWinAmount.toLocaleString("en-IN")}</strong><small>{winningPassedCount} × ₹{Number(winPayout || 0).toLocaleString("en-IN")}</small></div><div><span>Lost amount</span><strong>₹{totalLossAmount.toLocaleString("en-IN")}</strong><small>{winningLossCount} × ₹{investmentPerDay.toLocaleString("en-IN")}</small></div><div className={netAmount >= 0 ? "profit" : "loss"}><span>Net profit / loss</span><strong>{netAmount >= 0 ? "+" : "-"}₹{Math.abs(netAmount).toLocaleString("en-IN")}</strong><small>Winning amount minus total investment</small></div></div>
+            <footer>Top {topCount}: ₹{Number(stakeAmount || 0).toLocaleString("en-IN")} × {topCount} = ₹{investmentPerDay.toLocaleString("en-IN")} invested per day. Payout is automatic: ₹{Number(stakeAmount || 0).toLocaleString("en-IN")} × 9.5 = ₹{winPayout.toLocaleString("en-IN")}. Only failed days count as a loss.</footer>
+          </section>
+        </div>}
       </section>
     </div>
   );
@@ -1050,21 +1210,29 @@ async function requestPatternPrediction(
   analysis,
   configuredSeriesDays,
 ) {
-  const seriesDayLimit = getSeriesDayLimit(configuredSeriesDays);
-  const series = getCurrentDataSeries(analysis, seriesDayLimit);
-  if (series.length === 0) {
+  const seriesDayLimit = option.seriesDays
+    ?? getSeriesDayLimit(configuredSeriesDays);
+  const requestSeries = getCurrentDataSeries(
+    analysis,
+    option.requestSeriesDays ?? seriesDayLimit,
+  );
+  const displayedSeries = seriesDayLimit == null
+    ? requestSeries
+    : requestSeries.slice(-seriesDayLimit);
+  if (requestSeries.length === 0) {
     throw new Error(
       `${option.label} requires at least one valid Current Data value.`,
     );
   }
 
-  const seriesData = series.join(",");
+  const seriesData = requestSeries.join(",");
   const response = await fetch(`${apiBaseUrl}${option.endpoint}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       predictionMode: option.predictionMode ?? "Standard",
       seriesData,
+      period: Math.max(1, analysis.availableDays?.length ?? 7),
     }),
   });
   const data = await response.json().catch(() => null);
@@ -1079,13 +1247,18 @@ async function requestPatternPrediction(
   }
 
   return {
-    dataPointCount: series.length,
+    backtestAttempts: data.backtestAttempts,
+    backtestHits: data.backtestHits,
+    backtestHitRate: data.backtestHitRate,
+    dataPointCount: displayedSeries.length,
     label: option.label,
     model: data.model,
     pattern: option.value,
     predictedNumbers: getPredictedNumbers(data, option.label),
     prediction: data.prediction,
-    seriesData,
+    prompt: data.prompt,
+    numberPrompts: data.numberPrompts,
+    seriesData: displayedSeries.join(","),
     seriesDayLimit,
   };
 }
@@ -1207,10 +1380,16 @@ export default function App() {
   const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
   const [isNumberAnalysisOpen, setIsNumberAnalysisOpen] = useState(false);
   const [isLastWeekAnalysisOpen, setIsLastWeekAnalysisOpen] = useState(false);
+  const [isPatternWiseAnalysisOpen, setIsPatternWiseAnalysisOpen] = useState(false);
+  const [patternWiseAnalysisRows, setPatternWiseAnalysisRows] = useState([]);
+  const [patternWiseAnalysisStatus, setPatternWiseAnalysisStatus] = useState("idle");
+  const [patternWiseAnalysisError, setPatternWiseAnalysisError] = useState("");
+  const [patternWiseDayCount, setPatternWiseDayCount] = useState(7);
+  const [patternWiseTopCount, setPatternWiseTopCount] = useState(3);
   const [lastWeekAnalysisRows, setLastWeekAnalysisRows] = useState([]);
   const [lastWeekAnalysisStatus, setLastWeekAnalysisStatus] = useState("idle");
   const [lastWeekAnalysisError, setLastWeekAnalysisError] = useState("");
-  const [lastWeekTopCount, setLastWeekTopCount] = useState(3);
+  const [lastWeekTopCount, setLastWeekTopCount] = useState(10);
   const [lastWeekDayCount, setLastWeekDayCount] = useState(7);
   const [generatorUrl, setGeneratorUrl] = useState("");
   const [generatorFileName, setGeneratorFileName] = useState("");
@@ -1512,6 +1691,7 @@ export default function App() {
 
   const changeGame = (event) => {
     setSelectedGame(event.target.value);
+    setNumberType("Open");
     setNumbers("");
     setAnalysis(null);
     setStatus("idle");
@@ -1810,6 +1990,36 @@ export default function App() {
     }
   };
 
+  const runPatternWiseAnalysis = async (
+    dayCount = patternWiseDayCount,
+    topCount = patternWiseTopCount,
+  ) => {
+    const requestGeneration = apiRequestGenerationRef.current;
+    const requestBaseUrl = apiBaseUrl;
+    const requestedPatterns = panelPatternOptions.map((option) => option.value);
+    setIsPatternWiseAnalysisOpen(true);
+    setPatternWiseAnalysisRows([]);
+    setPatternWiseAnalysisStatus("loading");
+    setPatternWiseAnalysisError("");
+    try {
+      const response = await fetch(`${requestBaseUrl}/api/panel/analyze-pattern-wise`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        // Always collect the top ten ranks once. The modal derives every Top 1–10
+        // percentage from these ranks, making the Top selector immediate.
+        body: JSON.stringify({ fileName: selectedGame, latestCount: Number(latestCount || 3), numberType, patterns: requestedPatterns, skipLastNumbers: Number(skipLastNumbers || 0), topCount: 10, dayCount }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(getProblemMessage(data, `Pattern-wise analysis failed with status ${response.status}.`));
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+      setPatternWiseAnalysisRows(data);
+      setPatternWiseAnalysisStatus("success");
+    } catch (requestError) {
+      if (!isApiRequestCurrent(requestGeneration, requestBaseUrl)) return;
+      setPatternWiseAnalysisStatus("error");
+      setPatternWiseAnalysisError(requestError instanceof Error ? requestError.message : "Unable to compare pattern results.");
+    }
+  };
+
   if (activePage === "excel-files") {
     return (
       <ChartFilesPage
@@ -1907,8 +2117,10 @@ export default function App() {
             <NextNumberCountSection
               analysis={analysis}
               isLastWeekLoading={lastWeekAnalysisStatus === "loading"}
+              isPatternWiseLoading={patternWiseAnalysisStatus === "loading"}
               onOpenAnalysis={() => setIsNumberAnalysisOpen(true)}
               onOpenLastWeekAnalysis={() => runLastWeekAnalysis()}
+              onOpenPatternWiseAnalysis={() => runPatternWiseAnalysis()}
               onOpenPatternResponses={() => setIsPatternResponsesOpen(true)}
               patternLabel={analysisPatternLabel}
               patternResponseCount={patternResponses.length}
@@ -1950,6 +2162,7 @@ export default function App() {
       {isNumberAnalysisOpen && analysis && (
         <NumberAnalysisModal
           analysis={analysis}
+          gameName={selectedGameName}
           onClose={() => setIsNumberAnalysisOpen(false)}
         />
       )}
@@ -1958,6 +2171,8 @@ export default function App() {
         <LastWeekAnalysisModal
           dayCount={lastWeekDayCount}
           error={lastWeekAnalysisError}
+          gameName={selectedGameName}
+          numberType={numberType}
           onClose={() => setIsLastWeekAnalysisOpen(false)}
           onDayCountChange={(dayCount) => {
             setLastWeekDayCount(dayCount);
@@ -1970,6 +2185,22 @@ export default function App() {
           rows={lastWeekAnalysisRows}
           status={lastWeekAnalysisStatus}
           topCount={lastWeekTopCount}
+        />
+      )}
+
+      {isPatternWiseAnalysisOpen && (
+        <PatternWiseAnalysisModal
+          dayCount={patternWiseDayCount}
+          error={patternWiseAnalysisError}
+          gameName={selectedGameName}
+          numberType={numberType}
+          onClose={() => setIsPatternWiseAnalysisOpen(false)}
+          onDayCountChange={(dayCount) => { setPatternWiseDayCount(dayCount); runPatternWiseAnalysis(dayCount, patternWiseTopCount); }}
+          onTopCountChange={setPatternWiseTopCount}
+          rows={patternWiseAnalysisRows}
+          sourceUrl={selectedSourceUrl}
+          status={patternWiseAnalysisStatus}
+          topCount={patternWiseTopCount}
         />
       )}
 

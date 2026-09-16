@@ -25,6 +25,8 @@ export default function NextNumberCountSection({
   isLastWeekLoading,
   onOpenAnalysis,
   onOpenLastWeekAnalysis,
+  onOpenPatternWiseAnalysis,
+  isPatternWiseLoading,
   onOpenPatternResponses,
   patternLabel,
   patternResponseCount,
@@ -33,6 +35,17 @@ export default function NextNumberCountSection({
     <ResultCard
       action={(
         <div className="result-action-group">
+          {analysis.nextNumberCounts.length > 0 && (
+            <button
+              className="number-analysis-button"
+              disabled={isPatternWiseLoading}
+              onClick={onOpenPatternWiseAnalysis}
+              title="Compare which pattern gave the best guess and pass number results"
+              type="button"
+            >
+              {isPatternWiseLoading ? "Loading patterns..." : "Analysis Pattern wise"}
+            </button>
+          )}
           {analysis.nextNumberCounts.length > 0 && (
             <button
               className="number-analysis-button"

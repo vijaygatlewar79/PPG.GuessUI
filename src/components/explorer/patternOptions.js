@@ -1,6 +1,14 @@
 export const patternOptions = [
   { value: 'All', label: 'All Pattern' },
   {
+    value: 'Generic',
+    label: 'Generic',
+    kind: 'prediction',
+    endpoint: '/api/generic-prediction',
+    seriesDays: 30,
+    requestSeriesDays: 60,
+  },
+  {
     value: 'AIG',
     label: 'AIG Pattern',
     kind: 'prediction',
